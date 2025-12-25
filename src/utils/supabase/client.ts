@@ -2,7 +2,7 @@ import { projectId, publicAnonKey } from './info';
 
 const supabaseUrl = `https://${projectId}.supabase.co`;
 
-// Database type definitions (kept same as before)
+// Database type definitions
 export type Database = {
   public: {
     Tables: {
@@ -87,7 +87,153 @@ export type Database = {
   };
 };
 
-// Simple fetch-based Supabase client for Make environment
+// Generic builder for Supabase requests
+class QueryBuilder {
+  private url: string;
+  private headers: any;
+  private method: string;
+  private body: any;
+  private filters: Record<string, string> = {};
+  private queryParams: string = '';
+  private isSingle: boolean = false;
+
+  constructor(url: string, headers: any, method: string = 'GET', body: any = null) {
+    this.url = url;
+    this.headers = headers;
+    this.method = method;
+    this.body = body;
+  }
+
+  // Filters
+  eq(column: string, value: any) {
+    this.filters[column] = `eq.${value}`;
+    return this;
+  }
+
+  neq(column: string, value: any) {
+    this.filters[column] = `neq.${value}`;
+    return this;
+  }
+
+  gt(column: string, value: any) {
+    this.filters[column] = `gt.${value}`;
+    return this;
+  }
+
+  gte(column: string, value: any) {
+    this.filters[column] = `gte.${value}`;
+    return this;
+  }
+
+  lt(column: string, value: any) {
+    this.filters[column] = `lt.${value}`;
+    return this;
+  }
+
+  lte(column: string, value: any) {
+    this.filters[column] = `lte.${value}`;
+    return this;
+  }
+
+  like(column: string, value: any) {
+    this.filters[column] = `like.${value}`;
+    return this;
+  }
+
+  ilike(column: string, value: any) {
+    this.filters[column] = `ilike.${value}`;
+    return this;
+  }
+
+  in(column: string, values: any[]) {
+    this.filters[column] = `in.(${values.join(',')})`;
+    return this;
+  }
+
+  is(column: string, value: any) {
+    this.filters[column] = `is.${value}`;
+    return this;
+  }
+
+  // Modifiers
+  order(column: string, options?: { ascending?: boolean }) {
+    this.queryParams += `&order=${column}.${options?.ascending ? 'asc' : 'desc'}`;
+    return this;
+  }
+
+  limit(count: number) {
+    this.queryParams += `&limit=${count}`;
+    return this;
+  }
+
+  // Helper to retrieve data + count, usually just returns self in this mock
+  select(columns: string = '*') {
+    if (this.method === 'POST' || this.method === 'PATCH') {
+      this.queryParams += `&select=${columns}`;
+    }
+    // If it's a GET, the columns are usually set in constructor, but we can append/overwrite if needed
+    // For simplicity in this mock, we assume GETs start with select.
+    return this;
+  }
+
+  single() {
+    this.isSingle = true;
+    this.headers['Accept'] = 'application/vnd.pgrst.object+json';
+    return this;
+  }
+
+  // Execution
+  async execute() {
+    const filterStr = Object.entries(this.filters)
+      .map(([key, val]) => `${key}=${val}`)
+      .join('&');
+
+    // Construct final URL
+    // If it's a select (GET), we need ?select=* if not present, but for simplicity:
+    let finalUrl = this.url;
+    const separator = this.url.includes('?') ? '&' : '?';
+
+    const params = [filterStr, this.queryParams].filter(Boolean).join('&');
+    if (params) {
+      finalUrl += `${separator}${params}`;
+    }
+
+    try {
+      const response = await fetch(finalUrl, {
+        method: this.method,
+        headers: this.headers,
+        body: this.body ? JSON.stringify(this.body) : undefined,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { data: null, error: new Error(errorText) };
+      }
+
+      // DELETE usually returns 204 No Content, unless select() is chained
+      if (this.method === 'DELETE' && !this.queryParams.includes('select')) {
+        return { data: null, error: null };
+      }
+
+      const data = await response.json();
+
+      // Handle .single() automatic unpacking if API didn't do it (fallback)
+      if (this.isSingle && Array.isArray(data)) {
+        return { data: data.length > 0 ? data[0] : null, error: null };
+      }
+
+      return { data, error: null };
+    } catch (error) {
+      return { data: null, error: error as Error };
+    }
+  }
+
+  // Make the builder Thenable so it can be awaited directly
+  then(onfulfilled?: ((value: any) => any), onrejected?: ((reason: any) => any)) {
+    return this.execute().then(onfulfilled, onrejected);
+  }
+}
+
 class SupabaseClient {
   private url: string;
   private key: string;
@@ -108,188 +254,24 @@ class SupabaseClient {
   }
 
   from(table: string) {
+    const baseUrl = `${this.url}/rest/v1/${table}`;
+
     return {
       select: (columns = '*') => {
-        let query = '';
-        let filters: any = {};
-        
-        // Define execute first so we can bind it
-        const execute = async () => {
-          const filterStr = Object.entries(filters)
-            .map(([key, val]) => `${key}=${val}`)
-            .join('&');
-          
-          // Ensure special chars in query are handled if needed, currently basic
-          const url = `${this.url}/rest/v1/${table}?select=${columns}${filterStr ? '&' + filterStr : ''}${query}`;
-          
-          try {
-            const response = await fetch(url, {
-              method: 'GET',
-              headers: this.getHeaders(),
-            });
-            
-            if (!response.ok) {
-              const error = await response.text();
-              return { data: null, error: new Error(error) };
-            }
-            
-            const data = await response.json();
-            return { data, error: null };
-          } catch (error) {
-            return { data: null, error: error as Error };
-          }
-        };
-
-        const builder: any = {
-          eq: (column: string, value: any) => {
-            filters[column] = `eq.${value}`;
-            return builder;
-          },
-          neq: (column: string, value: any) => {
-            filters[column] = `neq.${value}`;
-            return builder;
-          },
-          gt: (column: string, value: any) => {
-            filters[column] = `gt.${value}`;
-            return builder;
-          },
-          gte: (column: string, value: any) => {
-            filters[column] = `gte.${value}`;
-            return builder;
-          },
-          lt: (column: string, value: any) => {
-            filters[column] = `lt.${value}`;
-            return builder;
-          },
-          lte: (column: string, value: any) => {
-            filters[column] = `lte.${value}`;
-            return builder;
-          },
-          like: (column: string, value: any) => {
-            filters[column] = `like.${value}`;
-            return builder;
-          },
-          ilike: (column: string, value: any) => {
-            filters[column] = `ilike.${value}`;
-            return builder;
-          },
-          in: (column: string, values: any[]) => {
-            filters[column] = `in.(${values.join(',')})`;
-            return builder;
-          },
-          order: (column: string, options?: { ascending?: boolean }) => {
-            query += `&order=${column}.${options?.ascending ? 'asc' : 'desc'}`;
-            return builder;
-          },
-          limit: (count: number) => {
-            query += `&limit=${count}`;
-            return builder;
-          },
-          single: async () => {
-            const result = await execute();
-            if (result.error) return result;
-            return { data: result.data?.[0] || null, error: null };
-          },
-          execute: execute,
-          // Make the builder itself "Thenable" so await works directly on chain results
-          then: (onfulfilled?: ((value: any) => any), onrejected?: ((reason: any) => any)) => {
-            return execute().then(onfulfilled, onrejected);
-          }
-        };
-        
-        return builder;
+        return new QueryBuilder(`${baseUrl}?select=${columns}`, this.getHeaders(), 'GET');
       },
-      
-      insert: (values: any) => ({
-        select: () => ({
-          single: async () => {
-            try {
-              const response = await fetch(`${this.url}/rest/v1/${table}`, {
-                method: 'POST',
-                headers: this.getHeaders(),
-                body: JSON.stringify(values),
-              });
-              
-              if (!response.ok) {
-                const error = await response.text();
-                return { data: null, error: new Error(error) };
-              }
-              
-              const data = await response.json();
-              return { data: data[0] || null, error: null };
-            } catch (error) {
-              return { data: null, error: error as Error };
-            }
-          },
-        }),
-      }),
-      
-      update: (values: any) => ({
-        eq: (column: string, value: any) => ({
-          select: () => ({
-            single: async () => {
-              try {
-                const response = await fetch(`${this.url}/rest/v1/${table}?${column}=eq.${value}`, {
-                  method: 'PATCH',
-                  headers: this.getHeaders(),
-                  body: JSON.stringify(values),
-                });
-                
-                if (!response.ok) {
-                  const error = await response.text();
-                  return { data: null, error: new Error(error) };
-                }
-                
-                const data = await response.json();
-                return { data: data[0] || null, error: null };
-              } catch (error) {
-                return { data: null, error: error as Error };
-              }
-            },
-          }),
-          execute: async () => {
-            try {
-              const response = await fetch(`${this.url}/rest/v1/${table}?${column}=eq.${value}`, {
-                method: 'PATCH',
-                headers: this.getHeaders(),
-                body: JSON.stringify(values),
-              });
-              
-              if (!response.ok) {
-                const error = await response.text();
-                return { data: null, error: new Error(error) };
-              }
-              
-              const data = await response.json();
-              return { data, error: null };
-            } catch (error) {
-              return { data: null, error: error as Error };
-            }
-          },
-        }),
-      }),
-      
-      delete: () => ({
-        eq: (column: string, value: any) => ({
-          execute: async () => {
-            try {
-              const response = await fetch(`${this.url}/rest/v1/${table}?${column}=eq.${value}`, {
-                method: 'DELETE',
-                headers: this.getHeaders(),
-              });
-              
-              if (!response.ok) {
-                const error = await response.text();
-                return { error: new Error(error) };
-              }
-              
-              return { error: null };
-            } catch (error) {
-              return { error: error as Error };
-            }
-          },
-        }),
-      }),
+
+      insert: (values: any) => {
+        return new QueryBuilder(baseUrl, this.getHeaders(), 'POST', values);
+      },
+
+      update: (values: any) => {
+        return new QueryBuilder(baseUrl, this.getHeaders(), 'PATCH', values);
+      },
+
+      delete: () => {
+        return new QueryBuilder(baseUrl, this.getHeaders(), 'DELETE');
+      },
     };
   }
 
@@ -305,15 +287,15 @@ class SupabaseClient {
             },
             body: JSON.stringify({ email, password }),
           });
-          
+
           if (!response.ok) {
             const error = await response.json();
             return { data: null, error: new Error(error.error_description || 'Login failed') };
           }
-          
+
           const data = await response.json();
           this.accessToken = data.access_token;
-          
+
           return {
             data: {
               user: data.user,
@@ -325,17 +307,17 @@ class SupabaseClient {
           return { data: null, error: error as Error };
         }
       },
-      
+
       signOut: async () => {
         this.accessToken = null;
         return { error: null };
       },
-      
+
       getSession: async () => {
         if (!this.accessToken) {
           return { data: { session: null }, error: null };
         }
-        
+
         try {
           const response = await fetch(`${this.url}/auth/v1/user`, {
             headers: {
@@ -343,11 +325,11 @@ class SupabaseClient {
               'Authorization': `Bearer ${this.accessToken}`,
             },
           });
-          
+
           if (!response.ok) {
             return { data: { session: null }, error: null };
           }
-          
+
           const user = await response.json();
           return {
             data: {
@@ -362,12 +344,12 @@ class SupabaseClient {
           return { data: { session: null }, error: error as Error };
         }
       },
-      
+
       onAuthStateChange: (callback: (event: string, session: any) => void) => {
         return {
           data: {
             subscription: {
-              unsubscribe: () => {},
+              unsubscribe: () => { },
             },
           },
         };
@@ -378,31 +360,31 @@ class SupabaseClient {
   get storage() {
     return {
       from: (bucket: string) => ({
-        upload: async (path: string, file: File, options?: any) => {
+        upload: async (path: string, file: File | Blob, options?: any) => {
           try {
             const formData = new FormData();
             formData.append('file', file);
-            
+
             const response = await fetch(`${this.url}/storage/v1/object/${bucket}/${path}`, {
               method: 'POST',
               headers: {
                 'apikey': this.key,
                 'Authorization': `Bearer ${this.accessToken || this.key}`,
               },
-              body: formData, // Fixed: body should be formData, not file directly for multipart
+              body: formData,
             });
-            
+
             if (!response.ok) {
               const error = await response.text();
               return { error: new Error(error), data: null };
             }
-            
+
             return { error: null, data: { path } };
           } catch (error) {
             return { error: error as Error, data: null };
           }
         },
-        
+
         getPublicUrl: (path: string) => ({
           data: {
             publicUrl: `${this.url}/storage/v1/object/public/${bucket}/${path}`,
@@ -418,16 +400,16 @@ class SupabaseClient {
         return channelInstance;
       },
       subscribe: () => {
-        const subscription = {
-          unsubscribe: () => {}
+        return {
+          unsubscribe: () => { }
         };
-        return subscription;
       },
     };
     return channelInstance;
   }
 
   removeChannel(channel: any) {
+    // No-op for now
   }
 }
 
