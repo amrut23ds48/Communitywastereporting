@@ -64,8 +64,7 @@ export function subscribeToNewReports(
 ) {
   const supabase = createClient();
   
-  const subscription = supabase
-    .channel('reports-changes')
+  const channel = supabase.channel('reports-changes')
     .on(
       'postgres_changes',
       {
@@ -76,10 +75,15 @@ export function subscribeToNewReports(
       (payload) => {
         callback(payload);
       }
-    )
-    .subscribe();
+    );
 
+  // Subscribe to the channel
+  const subscription = channel.subscribe();
+
+  // Return cleanup function
   return () => {
-    subscription.unsubscribe();
+    if (subscription) {
+      supabase.removeChannel(channel);
+    }
   };
 }
