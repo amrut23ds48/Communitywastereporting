@@ -2,7 +2,7 @@ import { projectId, publicAnonKey } from './info';
 
 const supabaseUrl = `https://${projectId}.supabase.co`;
 
-// Database type definitions
+// Database type definitions (kept same as before)
 export type Database = {
   public: {
     Tables: {
@@ -113,7 +113,34 @@ class SupabaseClient {
         let query = '';
         let filters: any = {};
         
-        const builder = {
+        // Define execute first so we can bind it
+        const execute = async () => {
+          const filterStr = Object.entries(filters)
+            .map(([key, val]) => `${key}=${val}`)
+            .join('&');
+          
+          // Ensure special chars in query are handled if needed, currently basic
+          const url = `${this.url}/rest/v1/${table}?select=${columns}${filterStr ? '&' + filterStr : ''}${query}`;
+          
+          try {
+            const response = await fetch(url, {
+              method: 'GET',
+              headers: this.getHeaders(),
+            });
+            
+            if (!response.ok) {
+              const error = await response.text();
+              return { data: null, error: new Error(error) };
+            }
+            
+            const data = await response.json();
+            return { data, error: null };
+          } catch (error) {
+            return { data: null, error: error as Error };
+          }
+        };
+
+        const builder: any = {
           eq: (column: string, value: any) => {
             filters[column] = `eq.${value}`;
             return builder;
@@ -159,45 +186,18 @@ class SupabaseClient {
             return builder;
           },
           single: async () => {
-            const result = await this.execute();
+            const result = await execute();
             if (result.error) return result;
             return { data: result.data?.[0] || null, error: null };
           },
-          execute: async () => {
-            const filterStr = Object.entries(filters)
-              .map(([key, val]) => `${key}=${val}`)
-              .join('&');
-            
-            const url = `${this.url}/rest/v1/${table}?select=${columns}${filterStr ? '&' + filterStr : ''}${query}`;
-            
-            try {
-              const response = await fetch(url, {
-                method: 'GET',
-                headers: this.getHeaders(),
-              });
-              
-              if (!response.ok) {
-                const error = await response.text();
-                return { data: null, error: new Error(error) };
-              }
-              
-              const data = await response.json();
-              return { data, error: null };
-            } catch (error) {
-              return { data: null, error: error as Error };
-            }
-          },
+          execute: execute,
+          // Make the builder itself "Thenable" so await works directly on chain results
+          then: (onfulfilled?: ((value: any) => any), onrejected?: ((reason: any) => any)) => {
+            return execute().then(onfulfilled, onrejected);
+          }
         };
         
-        // Make execute the default return
-        return new Proxy(builder, {
-          get(target: any, prop) {
-            if (prop === 'then') {
-              return target.execute().then.bind(target.execute());
-            }
-            return target[prop];
-          },
-        });
+        return builder;
       },
       
       insert: (values: any) => ({
@@ -389,7 +389,7 @@ class SupabaseClient {
                 'apikey': this.key,
                 'Authorization': `Bearer ${this.accessToken || this.key}`,
               },
-              body: file,
+              body: formData, // Fixed: body should be formData, not file directly for multipart
             });
             
             if (!response.ok) {
@@ -415,16 +415,11 @@ class SupabaseClient {
   channel(name: string) {
     const channelInstance = {
       on: (event: string, filter: any, callback: (payload: any) => void) => {
-        // In a real implementation, this would set up WebSocket listeners
-        // For now, we'll just store the callback
         return channelInstance;
       },
       subscribe: () => {
-        // Return a proper subscription object with unsubscribe method
         const subscription = {
-          unsubscribe: () => {
-            // Cleanup function
-          }
+          unsubscribe: () => {}
         };
         return subscription;
       },
@@ -433,7 +428,6 @@ class SupabaseClient {
   }
 
   removeChannel(channel: any) {
-    // No-op for now
   }
 }
 

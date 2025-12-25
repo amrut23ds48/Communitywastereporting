@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, BarChart3, FileText, LogOut, User, X } from 'lucide-react';
+import { Bell, BarChart3, FileText, LogOut, User, X, RefreshCw } from 'lucide-react';
 import { AnalyticsCards } from './AnalyticsCards';
 import { WasteMap } from './WasteMap';
 import { ReportsTable } from './ReportsTable';
@@ -7,6 +7,7 @@ import { MonthlyInsights } from './MonthlyInsights';
 import { StreetIndicators } from './StreetIndicators';
 import { signOutAdmin } from '../db/admin';
 import { getRecentNotifications, subscribeToNewReports } from '../db/notifications';
+import { generateMonthlyData, generateWeeklyData, dummyReportLocations } from '../utils/dummyData';
 import type { Database } from '../utils/supabase/client';
 
 type Notification = Database['public']['Tables']['notifications']['Row'];

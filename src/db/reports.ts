@@ -9,6 +9,7 @@ type ReportStatus = Report['status'];
  * Create a new waste report (citizen)
  */
 export async function createReport(report: ReportInsert): Promise<{ data: Report | null; error: Error | null }> {
+  console.log('📝 [db/reports] createReport: Initiating with data:', report);
   const supabase = createClient();
   
   try {
@@ -21,11 +22,15 @@ export async function createReport(report: ReportInsert): Promise<{ data: Report
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [db/reports] createReport: Supabase API Error:', error);
+      throw error;
+    }
     
+    console.log('✅ [db/reports] createReport: Success!', data);
     return { data, error: null };
   } catch (error) {
-    console.error('Error creating report:', error);
+    console.error('❌ [db/reports] createReport: Unexpected Exception:', error);
     return { data: null, error: error as Error };
   }
 }
@@ -41,6 +46,7 @@ export async function getReports(filters?: {
   endDate?: string;
   limit?: number;
 }): Promise<{ data: Report[] | null; error: Error | null }> {
+  console.log('🔍 [db/reports] getReports: Fetching with filters:', filters);
   const supabase = createClient();
   
   try {
@@ -76,11 +82,15 @@ export async function getReports(filters?: {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [db/reports] getReports: Supabase API Error:', error);
+      throw error;
+    }
     
+    console.log(`✅ [db/reports] getReports: Successfully retrieved ${data?.length || 0} reports`, data);
     return { data, error: null };
   } catch (error) {
-    console.error('Error fetching reports:', error);
+    console.error('❌ [db/reports] getReports: Unexpected Exception:', error);
     return { data: null, error: error as Error };
   }
 }
@@ -204,6 +214,7 @@ export async function getReportsByStreet(): Promise<{
  * Upload image to Supabase Storage
  */
 export async function uploadReportImage(file: File): Promise<{ url: string | null; error: Error | null }> {
+  console.log('📤 [db/reports] uploadReportImage: Uploading file', file.name);
   const supabase = createClient();
   
   try {
@@ -220,16 +231,20 @@ export async function uploadReportImage(file: File): Promise<{ url: string | nul
         upsert: false,
       });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('❌ [db/reports] uploadReportImage: Storage Error:', uploadError);
+      throw uploadError;
+    }
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('waste-reports')
       .getPublicUrl(filePath);
 
+    console.log('✅ [db/reports] uploadReportImage: Success, URL:', publicUrl);
     return { url: publicUrl, error: null };
   } catch (error) {
-    console.error('Error uploading image:', error);
+    console.error('❌ [db/reports] uploadReportImage: Exception:', error);
     return { url: null, error: error as Error };
   }
 }
@@ -242,6 +257,7 @@ export function subscribeToReports(
   filters?: { status?: ReportStatus }
 ) {
   const supabase = createClient();
+  console.log('📡 [db/reports] subscribeToReports: Subscribing to changes...');
   
   let subscription = supabase
     .channel('reports-changes')
@@ -254,6 +270,7 @@ export function subscribeToReports(
         filter: filters?.status ? `status=eq.${filters.status}` : undefined,
       },
       (payload) => {
+        console.log('🔔 [db/reports] Realtime Update Received:', payload);
         if (payload.new) {
           callback(payload.new as Report);
         }
@@ -262,6 +279,7 @@ export function subscribeToReports(
     .subscribe();
 
   return () => {
+    console.log('🔕 [db/reports] subscribeToReports: Unsubscribing');
     subscription.unsubscribe();
   };
 }

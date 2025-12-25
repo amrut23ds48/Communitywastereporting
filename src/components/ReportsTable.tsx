@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Image as ImageIcon, Calendar, MapPin, Filter, ZoomIn, Loader2 } from 'lucide-react';
+import { Check, X, Calendar, MapPin, Filter, ZoomIn, Loader2, RefreshCw } from 'lucide-react';
 import { getReports, subscribeToReports } from '../db/reports';
 import { updateReportStatus, getCurrentAdmin } from '../db/admin';
 import type { Database } from '../utils/supabase/client';
@@ -33,25 +33,41 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     fetchAdmin();
   }, []);
 
-  // Fetch reports
+  // Fetch reports and subscribe
   useEffect(() => {
     fetchReports();
+
+    const unsubscribe = subscribeToReports(
+      (payload) => {
+        console.log('[ReportsTable] Realtime event received, refreshing...');
+        fetchReports();
+      },
+      filterStatus !== 'all' ? { status: filterStatus as ReportStatus } : undefined
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, [filterStatus]);
 
   const fetchReports = async () => {
-    setLoading(true);
+    if (reports.length === 0) setLoading(true);
+    
+    console.log('[ReportsTable] Fetching reports with status:', filterStatus);
+    
     try {
       const { data, error } = await getReports({
         status: filterStatus === 'all' ? undefined : filterStatus as ReportStatus,
       });
 
       if (error) {
-        console.error('Error fetching reports:', error);
+        console.error('[ReportsTable] Error in fetchReports:', error);
       } else if (data) {
+        console.log('[ReportsTable] Reports loaded:', data.length);
         setReports(data);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('[ReportsTable] Exception in fetchReports:', error);
     } finally {
       setLoading(false);
     }
@@ -71,14 +87,14 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     setUpdatingStatus(reportId);
     
     try {
-      const { data, error } = await updateReportStatus(reportId, newStatus, adminId);
+      const { error } = await updateReportStatus(reportId, newStatus, adminId);
       
       if (error) {
         console.error('Error updating status:', error);
         alert('Failed to update status: ' + error.message);
       } else {
-        // Refresh reports
-        await fetchReports();
+        // Manual refresh since subscriptions might be mocked
+        fetchReports();
       }
     } catch (error) {
       console.error('Error:', error);
@@ -105,7 +121,16 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl text-gray-900">Reports Management</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl text-gray-900">Reports Management</h2>
+            <button 
+              onClick={fetchReports}
+              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+              title="Refresh Data"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
           
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-gray-500" />
@@ -153,7 +178,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
             {loading ? (
               <tr>
                 <td colSpan={6} className="px-6 py-4 text-center">
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-blue-500" />
                 </td>
               </tr>
             ) : filteredReports.length > 0 ? (
@@ -184,7 +209,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-xs truncate">
+                    <div className="text-sm text-gray-900 max-w-xs truncate" title={report.description || ''}>
                       {report.description}
                     </div>
                   </td>
@@ -237,7 +262,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-4 text-center">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   No reports found
                 </td>
               </tr>
@@ -249,15 +274,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
       {/* Pagination */}
       <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
         <div className="text-sm text-gray-600">
-          Showing {filteredReports.length} of {reports.length} reports
-        </div>
-        <div className="flex gap-2">
-          <button className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-            Previous
-          </button>
-          <button className="px-4 py-2 bg-blue-400 text-white rounded-lg text-sm hover:bg-blue-500 transition-colors">
-            Next
-          </button>
+          Showing {filteredReports.length} reports
         </div>
       </div>
 
