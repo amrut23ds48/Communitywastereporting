@@ -413,11 +413,27 @@ class SupabaseClient {
   }
 
   channel(name: string) {
-    return {
-      on: () => this,
-      subscribe: () => this,
-      unsubscribe: () => {},
+    const channelInstance = {
+      on: (event: string, filter: any, callback: (payload: any) => void) => {
+        // In a real implementation, this would set up WebSocket listeners
+        // For now, we'll just store the callback
+        return channelInstance;
+      },
+      subscribe: () => {
+        // Return a proper subscription object with unsubscribe method
+        const subscription = {
+          unsubscribe: () => {
+            // Cleanup function
+          }
+        };
+        return subscription;
+      },
     };
+    return channelInstance;
+  }
+
+  removeChannel(channel: any) {
+    // No-op for now
   }
 }
 

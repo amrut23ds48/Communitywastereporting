@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Check, X, Image as ImageIcon, Calendar, MapPin, Filter, ZoomIn, Loader2 } from 'lucide-react';
-import { getReports } from '../db/reports';
+import { getReports, subscribeToReports } from '../db/reports';
 import { updateReportStatus, getCurrentAdmin } from '../db/admin';
 import type { Database } from '../utils/supabase/client';
 
