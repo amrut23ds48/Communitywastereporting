@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, Calendar, MapPin, Filter, ZoomIn, Loader2, RefreshCw } from 'lucide-react';
+import { Check, X, Calendar, MapPin, Filter, ZoomIn, Loader2, RefreshCw, Play } from 'lucide-react';
 import { getReports, subscribeToReports } from '../db/reports';
-import { updateReportStatus, getCurrentAdmin } from '../db/admin';
+import { updateReportStatus, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
 import type { Database } from '../utils/supabase/client';
 
 type Report = Database['public']['Tables']['reports']['Row'];
@@ -25,12 +25,21 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
   }, [initialFilter]);
 
   // Get current admin
+  // Get current admin
   useEffect(() => {
     const fetchAdmin = async () => {
       const { userId } = await getCurrentAdmin();
       setAdminId(userId);
     };
     fetchAdmin();
+
+    const unsubscribe = subscribeToAuthChanges((userId) => {
+      setAdminId(userId);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   // Fetch reports and subscribe
@@ -52,9 +61,9 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
   const fetchReports = async () => {
     if (reports.length === 0) setLoading(true);
-    
+
     console.log('[ReportsTable] Fetching reports with status:', filterStatus);
-    
+
     try {
       const { data, error } = await getReports({
         status: filterStatus === 'all' ? undefined : filterStatus as ReportStatus,
@@ -85,10 +94,10 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     }
 
     setUpdatingStatus(reportId);
-    
+
     try {
       const { error } = await updateReportStatus(reportId, newStatus, adminId);
-      
+
       if (error) {
         console.error('Error updating status:', error);
         alert('Failed to update status: ' + error.message);
@@ -104,10 +113,12 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     }
   };
 
+
+
   const getStatusBadge = (status: string) => {
     const styles = {
       open: 'bg-red-100 text-red-700',
-      'in-progress': 'bg-yellow-100 text-yellow-700',
+      in_progress: 'bg-yellow-100 text-yellow-700',
       resolved: 'bg-green-100 text-green-700',
       false: 'bg-gray-100 text-gray-700',
     };
@@ -123,7 +134,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="text-xl text-gray-900">Reports Management</h2>
-            <button 
+            <button
               onClick={fetchReports}
               className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
               title="Refresh Data"
@@ -131,7 +142,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-gray-500" />
             <select
@@ -141,7 +152,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
             >
               <option value="all">All Reports</option>
               <option value="open">Open</option>
-              <option value="in-progress">In Progress</option>
+              <option value="in_progress">In Progress</option>
               <option value="resolved">Resolved</option>
               <option value="false">False Reports</option>
             </select>
@@ -185,7 +196,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
               filteredReports.map((report) => (
                 <tr key={report.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
-                    <div 
+                    <div
                       className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all relative group"
                       onClick={() => setExpandedImage(report.image_url)}
                     >
@@ -220,18 +231,31 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs capitalize ${getStatusBadge(
-                        report.status
-                      )}`}
-                    >
-                      {report.status.replace('_', ' ').replace('-', ' ')}
-                    </span>
+                    <div className="flex items-center gap-3">
+
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs capitalize ${getStatusBadge(
+                          report.status
+                        )}`}
+                      >
+                        {report.status.replace('_', ' ').replace('-', ' ')}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       {report.status !== 'resolved' && report.status !== 'false_report' && (
                         <>
+                          {report.status === 'open' && (
+                            <button
+                              onClick={() => handleStatusChange(report.id, 'in_progress')}
+                              disabled={updatingStatus === report.id}
+                              className="p-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg transition-colors disabled:opacity-50"
+                              title="Mark as In Progress"
+                            >
+                              <Play className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleStatusChange(report.id, 'resolved')}
                             disabled={updatingStatus === report.id}
@@ -280,7 +304,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
       {/* Image Expansion Modal */}
       {expandedImage && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4"
           onClick={() => setExpandedImage(null)}
         >
@@ -301,6 +325,8 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
           </div>
         </div>
       )}
+
+
     </div>
   );
 }

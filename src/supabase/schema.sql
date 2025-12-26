@@ -174,7 +174,9 @@ CREATE TRIGGER set_reports_resolved_at
 
 -- Function to create notifications on status change
 CREATE OR REPLACE FUNCTION create_status_change_notification()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 BEGIN
   -- Create notification when status changes to resolved
   IF NEW.status = 'resolved' AND OLD.status != 'resolved' THEN

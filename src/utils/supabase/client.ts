@@ -238,10 +238,15 @@ class SupabaseClient {
   private url: string;
   private key: string;
   private accessToken: string | null = null;
+  private authListeners: Array<(event: string, session: any) => void> = [];
 
   constructor(url: string, key: string) {
     this.url = url;
     this.key = key;
+    // Try to recover session from localStorage
+    if (typeof window !== 'undefined') {
+      this.accessToken = localStorage.getItem('sb-access-token');
+    }
   }
 
   private getHeaders() {
@@ -296,10 +301,17 @@ class SupabaseClient {
           const data = await response.json();
           this.accessToken = data.access_token;
 
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('sb-access-token', this.accessToken!);
+          }
+
+          const session = { user: data.user, access_token: data.access_token };
+          this.notifyListeners('SIGNED_IN', session);
+
           return {
             data: {
               user: data.user,
-              session: data,
+              session: session,
             },
             error: null,
           };
@@ -310,6 +322,10 @@ class SupabaseClient {
 
       signOut: async () => {
         this.accessToken = null;
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('sb-access-token');
+        }
+        this.notifyListeners('SIGNED_OUT', null);
         return { error: null };
       },
 
@@ -346,10 +362,13 @@ class SupabaseClient {
       },
 
       onAuthStateChange: (callback: (event: string, session: any) => void) => {
+        this.authListeners.push(callback);
         return {
           data: {
             subscription: {
-              unsubscribe: () => { },
+              unsubscribe: () => {
+                this.authListeners = this.authListeners.filter(cb => cb !== callback);
+              },
             },
           },
         };
@@ -410,6 +429,10 @@ class SupabaseClient {
 
   removeChannel(channel: any) {
     // No-op for now
+  }
+
+  private notifyListeners(event: string, session: any) {
+    this.authListeners.forEach(listener => listener(event, session));
   }
 }
 
