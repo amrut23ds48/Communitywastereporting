@@ -20,7 +20,7 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
     try {
       const { userId, error } = await signInAdmin(email, password);
-      
+
       if (error) {
         setError(error.message || 'Failed to sign in');
         setLoading(false);
@@ -112,7 +112,7 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
 
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <p className="text-xs text-gray-600 text-center">
-              <span className="text-blue-600">Demo:</span> admin@waste.com / admin123
+              <span className="text-blue-600">Demo:</span> admin@waste.com / admin@123
             </p>
           </div>
         </div>

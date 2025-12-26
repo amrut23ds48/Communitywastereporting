@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 import { Loader2 } from 'lucide-react';
-import { getMonthlyInsights } from '../db/analytics';
+import { getMonthlyInsights, getCurrentMonthWeeklyStats } from '../db/analytics';
 
 export function MonthlyInsights() {
   const [monthlyData, setMonthlyData] = useState<any[]>([]);
+  const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,13 +15,16 @@ export function MonthlyInsights() {
   const fetchMonthlyData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await getMonthlyInsights(6);
-      
-      if (error) {
-        console.error('Error fetching monthly insights:', error);
-      } else if (data) {
+      const [monthlyRes, weeklyRes] = await Promise.all([
+        getMonthlyInsights(6),
+        getCurrentMonthWeeklyStats()
+      ]);
+
+      if (monthlyRes.error) {
+        console.error('Error fetching monthly insights:', monthlyRes.error);
+      } else if (monthlyRes.data) {
         // Transform data for charts
-        const chartData = data.map(item => {
+        const chartData = monthlyRes.data.map(item => {
           const date = new Date(item.month + '-01');
           return {
             month: date.toLocaleDateString('en-US', { month: 'short' }),
@@ -32,6 +36,12 @@ export function MonthlyInsights() {
         });
         setMonthlyData(chartData);
       }
+
+      if (weeklyRes.error) {
+        console.error('Error fetching weekly stats:', weeklyRes.error);
+      } else if (weeklyRes.data) {
+        setWeeklyData(weeklyRes.data);
+      }
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -39,21 +49,7 @@ export function MonthlyInsights() {
     }
   };
 
-  // Calculate weekly data from monthly for the second chart
-  const getCurrentMonthWeekly = () => {
-    if (monthlyData.length === 0) return [];
-    
-    const currentMonth = monthlyData[monthlyData.length - 1];
-    // Simulate weekly breakdown (in production, you'd fetch actual weekly data)
-    return [
-      { week: 'Week 1', resolved: Math.floor(currentMonth.resolved * 0.2), unresolved: Math.floor(currentMonth.open * 0.2) },
-      { week: 'Week 2', resolved: Math.floor(currentMonth.resolved * 0.25), unresolved: Math.floor(currentMonth.open * 0.3) },
-      { week: 'Week 3', resolved: Math.floor(currentMonth.resolved * 0.3), unresolved: Math.floor(currentMonth.open * 0.25) },
-      { week: 'Week 4', resolved: Math.floor(currentMonth.resolved * 0.25), unresolved: Math.floor(currentMonth.open * 0.25) },
-    ];
-  };
 
-  const weeklyData = getCurrentMonthWeekly();
 
   if (loading) {
     return (
@@ -74,7 +70,7 @@ export function MonthlyInsights() {
     );
   }
 
-  if (monthlyData.length === 0) {
+  if (monthlyData.length === 0 && weeklyData.length === 0) {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-md p-6 flex items-center justify-center h-96">
@@ -134,10 +130,18 @@ export function MonthlyInsights() {
             />
             <Line
               type="monotone"
-              dataKey="open"
+              dataKey="inProgress"
               stroke="#fb923c"
               strokeWidth={2}
               dot={{ fill: '#fb923c', r: 4 }}
+              name="In Progress"
+            />
+            <Line
+              type="monotone"
+              dataKey="open"
+              stroke="#ef4444"
+              strokeWidth={2}
+              dot={{ fill: '#ef4444', r: 4 }}
               name="Open"
             />
           </LineChart>
@@ -171,8 +175,9 @@ export function MonthlyInsights() {
               wrapperStyle={{ fontSize: '12px' }}
               iconType="circle"
             />
-            <Bar dataKey="resolved" fill="#34d399" radius={[8, 8, 0, 0]} name="Resolved" />
-            <Bar dataKey="unresolved" fill="#fb923c" radius={[8, 8, 0, 0]} name="Unresolved" />
+            <Bar dataKey="resolved" fill="#34d399" radius={[4, 4, 0, 0]} name="Resolved" />
+            <Bar dataKey="inProgress" fill="#fb923c" radius={[4, 4, 0, 0]} name="In Progress" />
+            <Bar dataKey="open" fill="#ef4444" radius={[4, 4, 0, 0]} name="Open" />
           </BarChart>
         </ResponsiveContainer>
       </div>

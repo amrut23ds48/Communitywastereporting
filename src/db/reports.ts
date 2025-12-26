@@ -11,7 +11,7 @@ type ReportStatus = Report['status'];
 export async function createReport(report: ReportInsert): Promise<{ data: Report | null; error: Error | null }> {
   console.log('📝 [db/reports] createReport: Initiating with data:', report);
   const supabase = createClient();
-  
+
   try {
     const { data, error } = await supabase
       .from('reports')
@@ -26,7 +26,7 @@ export async function createReport(report: ReportInsert): Promise<{ data: Report
       console.error('❌ [db/reports] createReport: Supabase API Error:', error);
       throw error;
     }
-    
+
     console.log('✅ [db/reports] createReport: Success!', data);
     return { data, error: null };
   } catch (error) {
@@ -39,7 +39,7 @@ export async function createReport(report: ReportInsert): Promise<{ data: Report
  * Get all reports with optional filters
  */
 export async function getReports(filters?: {
-  status?: ReportStatus | 'all';
+  status?: ReportStatus | ReportStatus[] | 'all';
   streetName?: string;
   city?: string;
   startDate?: string;
@@ -48,7 +48,7 @@ export async function getReports(filters?: {
 }): Promise<{ data: Report[] | null; error: Error | null }> {
   console.log('🔍 [db/reports] getReports: Fetching with filters:', filters);
   const supabase = createClient();
-  
+
   try {
     let query = supabase
       .from('reports')
@@ -57,21 +57,25 @@ export async function getReports(filters?: {
 
     // Apply filters
     if (filters?.status && filters.status !== 'all') {
-      query = query.eq('status', filters.status);
+      if (Array.isArray(filters.status)) {
+        query = query.in('status', filters.status);
+      } else {
+        query = query.eq('status', filters.status);
+      }
     }
-    
+
     if (filters?.streetName) {
       query = query.ilike('street_name', `%${filters.streetName}%`);
     }
-    
+
     if (filters?.city) {
       query = query.eq('city', filters.city);
     }
-    
+
     if (filters?.startDate) {
       query = query.gte('created_at', filters.startDate);
     }
-    
+
     if (filters?.endDate) {
       query = query.lte('created_at', filters.endDate);
     }
@@ -86,7 +90,7 @@ export async function getReports(filters?: {
       console.error('❌ [db/reports] getReports: Supabase API Error:', error);
       throw error;
     }
-    
+
     console.log(`✅ [db/reports] getReports: Successfully retrieved ${data?.length || 0} reports`, data);
     return { data, error: null };
   } catch (error) {
@@ -100,7 +104,7 @@ export async function getReports(filters?: {
  */
 export async function getReportById(reportId: string): Promise<{ data: Report | null; error: Error | null }> {
   const supabase = createClient();
-  
+
   try {
     const { data, error } = await supabase
       .from('reports')
@@ -109,7 +113,7 @@ export async function getReportById(reportId: string): Promise<{ data: Report | 
       .single();
 
     if (error) throw error;
-    
+
     return { data, error: null };
   } catch (error) {
     console.error('Error fetching report:', error);
@@ -126,7 +130,7 @@ export async function getReportsByLocation(
   radiusKm: number = 0.5
 ): Promise<{ data: Report[] | null; error: Error | null }> {
   const supabase = createClient();
-  
+
   try {
     // Simple bounding box query (for production, use PostGIS)
     const latDelta = radiusKm / 111; // Rough conversion
@@ -141,7 +145,7 @@ export async function getReportsByLocation(
       .lte('longitude', longitude + lngDelta);
 
     if (error) throw error;
-    
+
     return { data, error: null };
   } catch (error) {
     console.error('Error fetching reports by location:', error);
@@ -152,12 +156,12 @@ export async function getReportsByLocation(
 /**
  * Get reports grouped by street (for heatmap)
  */
-export async function getReportsByStreet(): Promise<{ 
-  data: Array<{ street_name: string; city: string; count: number; lat: number; lng: number }> | null; 
-  error: Error | null 
+export async function getReportsByStreet(): Promise<{
+  data: Array<{ street_name: string; city: string; count: number; lat: number; lng: number }> | null;
+  error: Error | null
 }> {
   const supabase = createClient();
-  
+
   try {
     const { data: reports, error } = await supabase
       .from('reports')
@@ -167,18 +171,18 @@ export async function getReportsByStreet(): Promise<{
     if (!reports) return { data: null, error: null };
 
     // Group by street and calculate averages
-    const streetMap = new Map<string, { 
-      count: number; 
-      totalLat: number; 
-      totalLng: number; 
+    const streetMap = new Map<string, {
+      count: number;
+      totalLat: number;
+      totalLng: number;
       city: string;
       openCount: number;
     }>();
 
-    reports.forEach(report => {
+    reports.forEach((report: Pick<Report, 'street_name' | 'city' | 'latitude' | 'longitude' | 'status'>) => {
       const key = `${report.street_name}-${report.city}`;
       const existing = streetMap.get(key);
-      
+
       if (existing) {
         existing.count++;
         existing.totalLat += report.latitude;
@@ -202,7 +206,7 @@ export async function getReportsByStreet(): Promise<{
       lat: value.totalLat / value.count,
       lng: value.totalLng / value.count,
     }));
-    
+
     return { data, error: null };
   } catch (error) {
     console.error('Error fetching street reports:', error);
@@ -216,7 +220,7 @@ export async function getReportsByStreet(): Promise<{
 export async function uploadReportImage(file: File): Promise<{ url: string | null; error: Error | null }> {
   console.log('📤 [db/reports] uploadReportImage: Uploading file', file.name);
   const supabase = createClient();
-  
+
   try {
     // Generate unique filename
     const fileExt = file.name.split('.').pop();
@@ -258,7 +262,7 @@ export function subscribeToReports(
 ) {
   const supabase = createClient();
   console.log('📡 [db/reports] subscribeToReports: Subscribing to changes...');
-  
+
   let subscription = supabase
     .channel('reports-changes')
     .on(

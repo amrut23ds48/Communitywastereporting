@@ -38,7 +38,7 @@ export interface MonthlyInsight {
  */
 export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview | null; error: Error | null }> {
   const supabase = createClient();
-  
+
   try {
     // Get all reports
     const { data: allReports, error: allError } = await supabase
@@ -75,7 +75,7 @@ export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview 
     // Calculate statistics
     const thisMonthTotal = thisMonthReports?.length || 0;
     const lastMonthTotal = lastMonthReports?.length || 0;
-    const thisMonthChange = lastMonthTotal > 0 
+    const thisMonthChange = lastMonthTotal > 0
       ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
       : 0;
 
@@ -103,7 +103,7 @@ export async function getStreetStatistics(
   streetName?: string
 ): Promise<{ data: StreetStatistics[] | null; error: Error | null }> {
   const supabase = createClient();
-  
+
   try {
     let query = supabase
       .from('reports')
@@ -131,7 +131,7 @@ export async function getStreetStatistics(
 
     reports.forEach(report => {
       const existing = streetMap.get(report.street_name);
-      
+
       if (existing) {
         existing.total++;
         if (report.status === 'open') existing.open++;
@@ -179,11 +179,11 @@ export async function getMonthlyInsights(
   months: number = 6
 ): Promise<{ data: MonthlyInsight[] | null; error: Error | null }> {
   const supabase = createClient();
-  
+
   try {
     // Calculate start date
     const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - months);
+    startDate.setMonth(startDate.getMonth() - months + 1);
     startDate.setDate(1);
     startDate.setHours(0, 0, 0, 0);
 
@@ -208,9 +208,9 @@ export async function getMonthlyInsights(
     reports.forEach(report => {
       const date = new Date(report.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
+
       const existing = monthMap.get(monthKey);
-      
+
       if (existing) {
         existing.total++;
         if (report.status === 'open') existing.open++;
@@ -231,7 +231,7 @@ export async function getMonthlyInsights(
     // Fill in missing months with zeros
     const data: MonthlyInsight[] = [];
     const currentDate = new Date(startDate);
-    
+
     for (let i = 0; i < months; i++) {
       const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
       const stats = monthMap.get(monthKey) || {
@@ -241,7 +241,7 @@ export async function getMonthlyInsights(
         resolved: 0,
         falseReports: 0,
       };
-      
+
       data.push({
         month: monthKey,
         total: stats.total,
@@ -250,7 +250,7 @@ export async function getMonthlyInsights(
         resolved: stats.resolved,
         falseReports: stats.falseReports,
       });
-      
+
       currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
@@ -264,12 +264,12 @@ export async function getMonthlyInsights(
 /**
  * Get heatmap data (reports grouped by location)
  */
-export async function getHeatmapData(): Promise<{ 
-  data: Array<{ lat: number; lng: number; intensity: number }> | null; 
-  error: Error | null 
+export async function getHeatmapData(): Promise<{
+  data: Array<{ lat: number; lng: number; intensity: number }> | null;
+  error: Error | null
 }> {
   const supabase = createClient();
-  
+
   try {
     const { data: reports, error } = await supabase
       .from('reports')
@@ -287,7 +287,7 @@ export async function getHeatmapData(): Promise<{
       const gridLat = Math.floor(report.latitude / gridSize) * gridSize;
       const gridLng = Math.floor(report.longitude / gridSize) * gridSize;
       const key = `${gridLat}-${gridLng}`;
-      
+
       const existing = heatmap.get(key);
       if (existing) {
         existing.count++;
@@ -311,6 +311,59 @@ export async function getHeatmapData(): Promise<{
     return { data, error: null };
   } catch (error) {
     console.error('Error fetching heatmap data:', error);
+    return { data: null, error: error as Error };
+  }
+}
+
+export interface WeeklyStat {
+  week: string;
+  open: number;
+  inProgress: number;
+  resolved: number;
+}
+
+/**
+ * Get weekly statistics for the current month
+ */
+export async function getCurrentMonthWeeklyStats(): Promise<{ data: WeeklyStat[] | null; error: Error | null }> {
+  const supabase = createClient();
+
+  try {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const { data: reports, error } = await supabase
+      .from('reports')
+      .select('status, created_at')
+      .gte('created_at', startOfMonth.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    if (!reports) return { data: [], error: null };
+
+    // Initialize weeks (assuming max 5 weeks)
+    const weeklyData: WeeklyStat[] = Array(5).fill(0).map((_, i) => ({
+      week: `Week ${i + 1}`,
+      open: 0,
+      inProgress: 0,
+      resolved: 0,
+    }));
+
+    reports.forEach(report => {
+      const date = new Date(report.created_at);
+      const dayOfMonth = date.getDate();
+      // Simple week calculation: (day - 1) / 7
+      const weekIndex = Math.min(Math.floor((dayOfMonth - 1) / 7), 4);
+
+      if (report.status === 'open') weeklyData[weekIndex].open++;
+      if (report.status === 'in_progress') weeklyData[weekIndex].inProgress++;
+      if (report.status === 'resolved') weeklyData[weekIndex].resolved++;
+    });
+
+    return { data: weeklyData, error: null };
+  } catch (error) {
+    console.error('Error fetching weekly stats:', error);
     return { data: null, error: error as Error };
   }
 }

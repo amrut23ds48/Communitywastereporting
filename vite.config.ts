@@ -9,6 +9,8 @@ export default defineConfig({
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {
       'vaul@1.1.2': 'vaul',
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       'sonner@2.0.3': 'sonner',
       'recharts@2.15.2': 'recharts',
       'react-resizable-panels@2.1.7': 'react-resizable-panels',

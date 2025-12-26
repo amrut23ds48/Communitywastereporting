@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Bell, Camera, MapPin, Upload, X, CheckCircle, AlertCircle, Loader2, Edit2 } from 'lucide-react';
 import { WasteMap } from './WasteMap';
 import { StreetStatusOverview } from './StreetStatusOverview';
 import { createReport, uploadReportImage } from '../db/reports';
 import { getStreetStatistics } from '../db/analytics';
-import { 
-  detectLocation, 
+import {
+  detectLocation,
   isGeolocationSupported,
   validateManualLocation,
   type LocationState,
@@ -32,6 +32,10 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
   const [streetStats, setStreetStats] = useState<any>(null);
   const [manualLocationMode, setManualLocationMode] = useState(false);
   const [locationSource, setLocationSource] = useState<'auto' | 'manual'>('auto');
+
+  useEffect(() => {
+    requestLocation();
+  }, []);
 
   const requestLocation = async () => {
     setLocationState('detecting');
@@ -74,8 +78,6 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setUploadedImage(reader.result as string);
-        // Auto-trigger location detection when image is uploaded
-        requestLocation();
       };
       reader.readAsDataURL(file);
     }
@@ -83,7 +85,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
 
   const handleManualLocationSubmit = () => {
     const validation = validateManualLocation(detectedStreet, detectedCity);
-    
+
     if (!validation.valid) {
       setLocationError(validation.error);
       return;
@@ -140,7 +142,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
     try {
       // Upload image to Supabase Storage
       const { url: imageUrl, error: uploadError } = await uploadReportImage(uploadedFile);
-      
+
       if (uploadError || !imageUrl) {
         throw new Error('Failed to upload image');
       }
@@ -170,7 +172,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
       setCoordinates(null);
       setLocationSource('auto');
       setManualLocationMode(false);
-      
+
       // Hide success message after 5 seconds
       setTimeout(() => setSubmitSuccess(false), 5000);
     } catch (error) {
@@ -192,9 +194,9 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          
+
           <h1 className="text-gray-900">Citizen Dashboard</h1>
-          
+
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -234,7 +236,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
         {/* Report Waste Card */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-xl text-gray-900 mb-4">Report Waste</h2>
-          
+
           {submitSuccess && (
             <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
               <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -385,7 +387,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
                         </p>
                       </div>
                     </div>
-                    
+
                     {locationError && (
                       <p className="text-xs text-red-600">{locationError}</p>
                     )}
@@ -403,7 +405,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
                         placeholder="e.g., Main Street, Oak Avenue"
                       />
                     </div>
-                    
+
                     <div>
                       <label className="block text-xs text-gray-700 mb-1">City *</label>
                       <input
@@ -417,7 +419,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
                         placeholder="e.g., Springfield"
                       />
                     </div>
-                    
+
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -486,7 +488,11 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
         {/* Map View */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <h2 className="text-xl text-gray-900 mb-4">Waste Reports Map</h2>
-          <WasteMap viewType="citizen" />
+          <WasteMap
+            viewType="citizen"
+            userLocation={coordinates}
+            cityFilter={locationState === 'success' ? detectedCity : undefined}
+          />
         </div>
       </div>
     </div>
