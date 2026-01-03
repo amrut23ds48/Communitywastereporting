@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, AlertTriangle, CheckCircle2, Clock, MapPin, Crown, Flame, ArrowRight, BarChart3 } from 'lucide-react';
+import { 
+  TrendingUp, AlertTriangle, CheckCircle2, MapPin, 
+  Crown, Flame, ArrowRight, BarChart3, GripHorizontal 
+} from 'lucide-react';
 import { getStreetStatistics } from '../db/analytics';
 
 // --- Types & Helpers ---
@@ -12,7 +15,6 @@ interface StreetData {
   severity: 'Critical' | 'High' | 'Medium' | 'Low';
 }
 
-// Logic to determine severity based on open report %
 const getSeverity = (open: number, total: number): StreetData['severity'] => {
   const ratio = open / (total || 1);
   if (total > 50 && ratio > 0.6) return 'Critical';
@@ -21,90 +23,117 @@ const getSeverity = (open: number, total: number): StreetData['severity'] => {
   return 'Low';
 };
 
-const SeverityBadge = ({ level }: { level: string }) => {
+// --- Sub-Component: Severity Tag ---
+const SeverityTag = ({ level }: { level: string }) => {
   const styles = {
-    Critical: 'bg-red-500 text-white shadow-red-200 shadow-md',
-    High: 'bg-orange-500 text-white shadow-orange-200 shadow-md',
-    Medium: 'bg-amber-400 text-amber-900',
-    Low: 'bg-emerald-500 text-white',
+    Critical: 'bg-red-50 text-red-700 border-red-200 ring-red-500/20',
+    High: 'bg-orange-50 text-orange-700 border-orange-200 ring-orange-500/20',
+    Medium: 'bg-amber-50 text-amber-700 border-amber-200 ring-amber-500/20',
+    Low: 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-500/20',
   };
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-wider ${styles[level as keyof typeof styles]}`}>
+    <span className={`
+      px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ring-1
+      ${styles[level as keyof typeof styles]}
+    `}>
       {level}
     </span>
   );
 };
 
-// --- Sub-Component: Top Ranked Street (The "Hero" Card) ---
-const TopStreetCard = ({ street }: { street: StreetData }) => (
-  <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50 p-5 border border-amber-200 shadow-lg group">
-    {/* Decorative Glow */}
-    <div className="absolute top-0 right-0 -mr-8 -mt-8 h-24 w-24 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 opacity-20 blur-2xl group-hover:opacity-30 transition-opacity" />
-    
-    <div className="relative z-10 flex items-start justify-between">
-      <div className="flex gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 text-white shadow-md shadow-orange-200">
-          <Crown size={20} fill="currentColor" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">#1 Hotspot</span>
-            <SeverityBadge level={street.severity} />
-          </div>
-          <h3 className="text-lg font-bold text-gray-900 leading-tight">{street.name}</h3>
-        </div>
-      </div>
-      <div className="text-right">
-        <span className="block text-2xl font-black text-gray-800">{street.total}</span>
-        <span className="text-[10px] font-bold text-gray-400 uppercase">Reports</span>
-      </div>
-    </div>
+// --- Sub-Component: Segmented Progress Bar ---
+const SegmentedBar = ({ open, active, fixed, total }: { open: number, active: number, fixed: number, total: number }) => (
+  <div className="h-2 w-full flex gap-0.5 rounded-full overflow-hidden bg-slate-100">
+    <div className="bg-red-500/90 hover:bg-red-500 transition-colors" style={{ width: `${(open/total)*100}%` }} title={`${open} Open`} />
+    <div className="bg-amber-400/90 hover:bg-amber-400 transition-colors" style={{ width: `${(active/total)*100}%` }} title={`${active} In Progress`} />
+    <div className="bg-emerald-500/90 hover:bg-emerald-500 transition-colors" style={{ width: `${(fixed/total)*100}%` }} title={`${fixed} Fixed`} />
+  </div>
+);
 
-    {/* Visual Bar for Top Card */}
-    <div className="mt-4 space-y-2">
-      <div className="flex justify-between text-xs font-medium text-gray-500">
-        <span className="flex items-center gap-1"><AlertTriangle size={10} className="text-red-500" /> {street.open} Open</span>
-        <span className="flex items-center gap-1 text-emerald-600"> {street.resolved} Resolved <CheckCircle2 size={10} /></span>
+// --- Sub-Component: #1 Hotspot Hero Card ---
+const TopStreetCard = ({ street }: { street: StreetData }) => (
+  <div className="relative mb-6 group">
+    <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-orange-500/5 rounded-2xl transform transition-transform group-hover:scale-[1.02]" />
+    <div className="relative rounded-2xl border border-red-100 bg-white p-5 shadow-sm hover:shadow-md transition-all">
+      
+      {/* Header */}
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex gap-3">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+              <Crown size={20} fill="currentColor" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center text-[10px] font-bold text-red-600 border border-red-100 shadow-sm">
+              1
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Highest Density</span>
+              {street.severity === 'Critical' && <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 leading-tight mt-0.5">{street.name}</h3>
+          </div>
+        </div>
+        <div className="text-right">
+          <span className="block text-2xl font-black text-slate-800 tracking-tight">{street.total}</span>
+          <span className="text-[10px] font-semibold text-slate-400 uppercase">Reports</span>
+        </div>
       </div>
-      <div className="h-3 w-full rounded-full bg-amber-100 overflow-hidden flex border border-amber-200/50">
-        <div className="bg-red-500 h-full" style={{ width: `${(street.open/street.total)*100}%` }} />
-        <div className="bg-amber-400 h-full" style={{ width: `${(street.inProgress/street.total)*100}%` }} />
-        <div className="bg-emerald-500 h-full" style={{ width: `${(street.resolved/street.total)*100}%` }} />
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-red-50/50 rounded-lg p-2 text-center border border-red-100">
+          <div className="text-red-600 font-bold text-sm">{street.open}</div>
+          <div className="text-[10px] text-red-400 font-medium">Open</div>
+        </div>
+        <div className="bg-amber-50/50 rounded-lg p-2 text-center border border-amber-100">
+          <div className="text-amber-600 font-bold text-sm">{street.inProgress}</div>
+          <div className="text-[10px] text-amber-400 font-medium">Active</div>
+        </div>
+        <div className="bg-emerald-50/50 rounded-lg p-2 text-center border border-emerald-100">
+          <div className="text-emerald-600 font-bold text-sm">{street.resolved}</div>
+          <div className="text-[10px] text-emerald-400 font-medium">Fixed</div>
+        </div>
       </div>
+
+      <SegmentedBar 
+        open={street.open} 
+        active={street.inProgress} 
+        fixed={street.resolved} 
+        total={street.total} 
+      />
     </div>
   </div>
 );
 
-// --- Sub-Component: Standard Street Row ---
+// --- Sub-Component: Standard List Row ---
 const StreetRow = ({ street, index }: { street: StreetData, index: number }) => (
-  <div className="group relative flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 transition-all hover:border-blue-100 hover:shadow-md hover:-translate-x-1">
+  <div className="group flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all duration-200">
     
-    {/* Rank Number */}
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 font-bold text-gray-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+    {/* Rank */}
+    <div className="w-6 text-center font-bold text-slate-300 group-hover:text-blue-600 transition-colors text-sm">
       {index + 1}
     </div>
 
-    {/* Info */}
+    {/* Content */}
     <div className="flex-1 min-w-0">
-      <div className="flex justify-between items-center mb-1">
-        <h4 className="font-bold text-gray-700 truncate text-sm">{street.name}</h4>
-        <span className="text-xs font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded">{street.total}</span>
+      <div className="flex justify-between items-center mb-1.5">
+        <h4 className="font-semibold text-slate-700 text-sm truncate pr-2">{street.name}</h4>
+        <div className="flex items-center gap-2">
+           {street.severity === 'Critical' && <Flame size={12} className="text-red-500" />}
+           <span className="text-xs font-bold text-slate-900 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">
+             {street.total}
+           </span>
+        </div>
       </div>
       
-      {/* Mini Progress Bar */}
-      <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden flex">
-         <div className="bg-red-500" style={{ width: `${(street.open/street.total)*100}%` }} />
-         <div className="bg-amber-400" style={{ width: `${(street.inProgress/street.total)*100}%` }} />
-         <div className="bg-emerald-500" style={{ width: `${(street.resolved/street.total)*100}%` }} />
-      </div>
-    </div>
-
-    {/* Status Icon Indicator (Severity) */}
-    <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity -ml-2 group-hover:ml-0">
-        {street.severity === 'Critical' ? <Flame size={16} className="text-red-500 animate-pulse" /> : 
-         street.severity === 'High' ? <AlertTriangle size={16} className="text-orange-500" /> :
-         <BarChart3 size={16} className="text-blue-400" />
-        }
+      <SegmentedBar 
+        open={street.open} 
+        active={street.inProgress} 
+        fixed={street.resolved} 
+        total={street.total} 
+      />
     </div>
   </div>
 );
@@ -138,62 +167,61 @@ export function StreetIndicators() {
   }, []);
 
   return (
-    <div className="h-full rounded-3xl bg-white border border-gray-100 shadow-xl flex flex-col overflow-hidden">
+    <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
       
-      {/* 1. Specialized Dark/Gradient Header */}
-      <div className="relative bg-[#1a2e1a] p-6 text-white overflow-hidden">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10" 
-             style={{ backgroundImage: 'radial-gradient(#4ade80 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-        
-        <div className="relative z-10 flex justify-between items-start">
-            <div>
-                <div className="flex items-center gap-2 text-emerald-400 mb-1">
-                    <MapPin size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">Geospatial Analytics</span>
-                </div>
-                <h2 className="text-xl font-bold">Zone Intensity</h2>
-            </div>
-            <div className="p-2 bg-white/10 rounded-lg backdrop-blur-md border border-white/10">
-                <TrendingUp size={20} className="text-emerald-300" />
-            </div>
+      {/* Header */}
+      <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-blue-600" />
+            Top Hotspots
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">Areas with highest report density</p>
         </div>
+        <button className="p-2 hover:bg-slate-50 rounded-lg transition-colors text-slate-400 hover:text-blue-600">
+           <GripHorizontal size={20} />
+        </button>
       </div>
 
-      {/* 2. Content Body */}
-      <div className="flex-1 p-5 overflow-y-auto bg-gray-50/50">
+      {/* Body */}
+      <div className="flex-1 p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
         {loading ? (
-          <div className="flex flex-col items-center justify-center h-48 space-y-3">
-             <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-             <p className="text-xs font-medium text-gray-400">Analyzing street data...</p>
+          <div className="flex flex-col items-center justify-center h-full min-h-[200px] space-y-3">
+             <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+             <p className="text-xs font-medium text-slate-400">Analyzing geolocation...</p>
           </div>
         ) : streetData.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">No data available</div>
+          <div className="text-center py-10">
+            <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <MapPin className="text-slate-300" />
+            </div>
+            <p className="text-sm text-slate-400">No hotspot data available yet.</p>
+          </div>
         ) : (
           <>
-            {/* Top 1 gets special card */}
+            {/* #1 Card */}
             <TopStreetCard street={streetData[0]} />
 
-            {/* Others get list */}
-            <div className="space-y-3">
-                <h5 className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">Runner Ups</h5>
-                {streetData.slice(1).map((street, idx) => (
-                    <StreetRow key={street.name} street={street} index={idx + 1} />
-                ))}
+            {/* List */}
+            <div className="space-y-1">
+               <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-4 mb-2">Runner Ups</h5>
+               {streetData.slice(1).map((street, idx) => (
+                  <StreetRow key={street.name} street={street} index={idx + 1} />
+               ))}
             </div>
           </>
         )}
       </div>
 
-      {/* 3. Footer Legend */}
-      <div className="bg-white p-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-500 font-medium">
-         <div className="flex gap-3">
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> Open</span>
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-400" /> Active</span>
-            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Fixed</span>
+      {/* Footer Legend */}
+      <div className="p-3 bg-slate-50 border-t border-slate-100 text-[10px] font-medium text-slate-500 flex justify-between items-center">
+         <div className="flex gap-4">
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /> Open</span>
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /> Active</span>
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Fixed</span>
          </div>
-         <button className="flex items-center gap-1 hover:text-emerald-600 transition-colors">
-            Full Map <ArrowRight size={10} />
+         <button className="text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline">
+            Full Analysis <ArrowRight size={10} />
          </button>
       </div>
     </div>

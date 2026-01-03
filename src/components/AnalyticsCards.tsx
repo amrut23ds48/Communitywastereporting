@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { FileText, AlertCircle, CheckCircle, XCircle, ArrowUpRight, Activity, BarChart2, TrendingDown } from 'lucide-react';
+import { 
+  FileText, AlertCircle, CheckCircle2, XCircle, 
+  ArrowUpRight, ArrowDownRight, Activity, 
+  MoreHorizontal 
+} from 'lucide-react';
 import { getAnalyticsOverview } from '../db/analytics';
 
 // --- Types ---
@@ -9,56 +13,16 @@ interface AnalyticsCardsProps {
   activeFilter?: string;
 }
 
-// --- Helper: Animated Sparkline Wave ---
-// Now features a draw animation using CSS stroke-dasharray
-const SparklineWave = ({ color, isHero }: { color: string, isHero?: boolean }) => {
-  const [draw, setDraw] = useState(false);
-
-  useEffect(() => {
-    // Trigger animation after mount
-    setTimeout(() => setDraw(true), 100);
-  }, []);
-
-  return (
-    <div className="absolute bottom-0 left-0 w-full h-20 opacity-40 pointer-events-none overflow-hidden">
-        <svg className="w-full h-full" viewBox="0 0 100 25" preserveAspectRatio="none">
-            <defs>
-                <linearGradient id={`grad-${color}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor={color} stopOpacity={0.4} />
-                    <stop offset="100%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-            </defs>
-            {/* Filled Area */}
-            <path
-                d="M0,25 L0,15 C10,20 20,5 30,12 C40,18 50,10 60,15 C70,20 80,5 90,10 C100,15 100,25 100,25 Z"
-                fill={`url(#grad-${color})`}
-                className="transition-all duration-1000 ease-out"
-                style={{ transform: draw ? 'translateY(0)' : 'translateY(100%)' }}
-            />
-            {/* Stroke Line (Animated) */}
-            <path
-                d="M0,15 C10,20 20,5 30,12 C40,18 50,10 60,15 C70,20 80,5 90,10 C100,15"
-                fill="none"
-                stroke={color}
-                strokeWidth="0.5"
-                className="transition-all duration-[2000ms] ease-out"
-                strokeDasharray="100"
-                strokeDashoffset={draw ? '0' : '100'}
-            />
-        </svg>
-    </div>
-  );
-};
-
-// --- Custom Hook: Number Counter ---
-const useCountUp = (end: number, duration: number = 2000) => {
+// --- Helper: Count Up Animation ---
+const useCountUp = (end: number, duration: number = 1500) => {
   const [count, setCount] = useState(0);
   useEffect(() => {
     let startTime: number | null = null;
     const animate = (currentTime: number) => {
       if (!startTime) startTime = currentTime;
       const progress = Math.min((currentTime - startTime) / duration, 1);
-      const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      // Ease out quartic
+      const ease = 1 - Math.pow(1 - progress, 4);
       setCount(Math.floor(ease * end));
       if (progress < 1) requestAnimationFrame(animate);
     };
@@ -67,90 +31,93 @@ const useCountUp = (end: number, duration: number = 2000) => {
   return count;
 };
 
+// --- Sub-Component: Area Chart Background ---
+const AreaChartBackground = ({ color, isActive }: { color: string, isActive: boolean }) => {
+  return (
+    <div className="absolute inset-x-0 bottom-0 h-16 opacity-20 pointer-events-none overflow-hidden rounded-b-2xl">
+      <svg className="w-full h-full" viewBox="0 0 100 40" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={`grad-${color}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity={0.5} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <path
+          d="M0,40 L0,20 C15,25 25,10 40,15 C55,20 65,5 80,10 C90,12 100,25 100,25 L100,40 Z"
+          fill={`url(#grad-${color})`}
+          className="transition-all duration-1000 ease-out"
+          style={{ transform: isActive ? 'scaleY(1.1)' : 'scaleY(1)' }}
+        />
+        <path
+          d="M0,20 C15,25 25,10 40,15 C55,20 65,5 80,10 C90,12 100,25"
+          fill="none"
+          stroke={color}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          className="opacity-60"
+        />
+      </svg>
+    </div>
+  );
+};
+
 // --- Sub-Component: Stat Card ---
 const StatCard = ({ 
   title, 
   value, 
-  subtitle, 
+  label, 
   icon: Icon, 
   filter, 
-  cssClasses, 
+  theme, 
   isActive, 
   onClick,
-  index,
   trend 
 }: any) => {
   const animatedValue = useCountUp(value);
-  const isHero = filter === 'all';
 
   return (
     <button
       onClick={() => onClick(filter)}
       className={`
-        relative overflow-hidden w-full text-left rounded-3xl transition-all duration-500 ease-out group
-        ${isHero 
-            ? 'bg-eco-gradient text-white shadow-xl shadow-green-900/10' 
-            : `bg-white border border-gray-100 shadow-lg hover:shadow-2xl ${cssClasses.cardGradient}`
+        relative w-full text-left rounded-2xl p-6 transition-all duration-300 ease-out group overflow-hidden
+        bg-white border
+        ${isActive 
+          ? `ring-2 ring-offset-2 border-transparent ${theme.ring}` 
+          : 'border-slate-100 hover:border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1'
         }
-        ${isActive && !isHero ? 'ring-2 ring-green-500 ring-offset-2' : ''}
-        ${!isHero ? 'hover:-translate-y-2' : 'hover:scale-[1.02]'}
       `}
-      style={{ animationDelay: `${index * 150}ms` }}
     >
-      {/* 1. Background Pattern */}
-      <div className="absolute inset-0 opacity-[0.05]" 
-           style={{ backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)', backgroundSize: '24px 24px' }} 
-      />
+      {/* Background Decor */}
+      <AreaChartBackground color={theme.hex} isActive={isActive} />
 
-      {/* 2. Giant Decorative Icon (Faded Background) */}
-      <div className={`absolute -right-6 -top-6 opacity-[0.07] transition-transform duration-700 ease-in-out group-hover:rotate-12 group-hover:scale-125 ${isHero ? 'text-white' : cssClasses.iconColor}`}>
-         <Icon size={180} />
-      </div>
-
-      <div className="relative z-10 p-7 h-full flex flex-col justify-between">
-        
-        {/* Top Section */}
-        <div className="flex justify-between items-start">
-            {/* Icon Box */}
-          <div className={`
-            relative p-3.5 rounded-2xl backdrop-blur-md border border-white/20 transition-all duration-300 shadow-sm
-            ${isHero ? 'bg-white/20 text-white' : `${cssClasses.iconBg} ${cssClasses.iconColor}`}
-          `}>
-             {/* Pulse Ring for Hero */}
-             {isHero && <div className="absolute inset-0 rounded-2xl border border-white/50 animate-ping opacity-50" />}
-            <Icon size={28} strokeWidth={2.5} />
+      <div className="relative z-10 flex flex-col h-full justify-between">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-4">
+          <div className={`p-2.5 rounded-xl ${theme.bg} ${theme.text}`}>
+            <Icon size={22} strokeWidth={2.5} />
           </div>
-          
-          {/* Trend Badge */}
-          <div className={`
-            flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold backdrop-blur-md shadow-sm border border-white/10
-            ${isHero ? 'bg-white/20 text-white' : `${cssClasses.trendBg} ${cssClasses.trendColor}`}
-          `}>
-            {trend.isPositive ? <ArrowUpRight size={14} strokeWidth={3} /> : <TrendingDown size={14} strokeWidth={3} />}
-            {trend.value}
-          </div>
+          {trend && (
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${trend.isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+              {trend.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+              {trend.value}
+            </div>
+          )}
         </div>
 
-        {/* Middle Section: Stats */}
-        <div className="mt-8 mb-6">
-          <h3 className={`text-5xl font-black tracking-tight tabular-nums drop-shadow-sm ${isHero ? 'text-white' : 'text-gray-900'}`}>
+        {/* Metric */}
+        <div>
+          <h3 className="text-3xl font-bold text-slate-800 tracking-tight tabular-nums">
             {animatedValue.toLocaleString()}
           </h3>
-          <p className={`font-bold mt-1 text-lg tracking-wide ${isHero ? 'text-green-50' : 'text-gray-500'}`}>
-            {title}
-          </p>
+          <p className="text-sm font-medium text-slate-500 mt-1">{title}</p>
         </div>
 
-        {/* Bottom Section: Context */}
-        <div className="flex items-center gap-2 text-sm font-semibold opacity-90">
-          <span className={`flex h-2 w-2 rounded-full ${isHero ? 'bg-white animate-pulse' : cssClasses.dotColor}`} />
-          <span className={isHero ? 'text-green-50' : 'text-gray-400'}>{subtitle}</span>
+        {/* Footer Label */}
+        <div className="mt-4 flex items-center gap-2">
+           <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
+           <span className="text-xs text-slate-400 font-medium">{label}</span>
         </div>
       </div>
-
-      {/* Animated Sparkline */}
-      <SparklineWave color={isHero ? '#ffffff' : cssClasses.waveColor} isHero={isHero} />
-
     </button>
   );
 };
@@ -179,76 +146,88 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
     return () => { isMounted = false; };
   }, [refreshKey]);
 
-  const cards = useMemo(() => [
+  // Configuration for cards
+  const cardConfig = useMemo(() => [
     {
+      id: 'total',
       title: 'Total Reports',
       value: stats.totalReports,
-      subtitle: 'Recorded in system',
+      label: 'System wide',
       icon: Activity,
       filter: 'all',
-      trend: { value: `${stats.thisMonthChange}% Growth`, isPositive: stats.thisMonthChange >= 0 },
-      cssClasses: {
-        waveColor: '#ffffff'
+      trend: { value: `${stats.thisMonthChange}%`, isPositive: stats.thisMonthChange >= 0 },
+      theme: {
+        bg: 'bg-blue-50',
+        text: 'text-blue-600',
+        ring: 'ring-blue-500',
+        dot: 'bg-blue-500',
+        hex: '#3b82f6' // blue-500
       }
     },
     {
-      title: 'Open Reports',
+      id: 'open',
+      title: 'Open Issues',
       value: stats.openReports,
-      subtitle: 'Action required',
+      label: 'Needs attention',
       icon: AlertCircle,
       filter: 'open',
-      trend: { value: 'Critical', isPositive: false },
-      cssClasses: {
-        cardGradient: 'bg-gradient-to-br from-white to-orange-50/50 hover:to-orange-100/50',
-        iconBg: 'bg-orange-100',
-        iconColor: 'text-orange-600',
-        trendBg: 'bg-orange-50',
-        trendColor: 'text-orange-700',
-        dotColor: 'bg-orange-500',
-        waveColor: '#ea580c' // Orange-600
+      trend: null,
+      theme: {
+        bg: 'bg-orange-50',
+        text: 'text-orange-600',
+        ring: 'ring-orange-500',
+        dot: 'bg-orange-500',
+        hex: '#f97316' // orange-500
       }
     },
     {
+      id: 'resolved',
       title: 'Resolved',
       value: stats.resolvedReports,
-      subtitle: 'Successfully closed',
-      icon: CheckCircle,
+      label: 'Fixed this month',
+      icon: CheckCircle2,
       filter: 'resolved',
-      trend: { value: 'Excellent', isPositive: true },
-      cssClasses: {
-        cardGradient: 'bg-gradient-to-br from-white to-emerald-50/50 hover:to-emerald-100/50',
-        iconBg: 'bg-emerald-100',
-        iconColor: 'text-emerald-600',
-        trendBg: 'bg-emerald-50',
-        trendColor: 'text-emerald-700',
-        dotColor: 'bg-emerald-500',
-        waveColor: '#059669' // Emerald-600
+      trend: { value: 'High', isPositive: true },
+      theme: {
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-600',
+        ring: 'ring-emerald-500',
+        dot: 'bg-emerald-500',
+        hex: '#10b981' // emerald-500
       }
     },
     {
+      id: 'false',
       title: 'False Flags',
       value: stats.falseReports,
-      subtitle: 'Marked invalid',
+      label: 'Invalid reports',
       icon: XCircle,
       filter: 'false_report',
-      trend: { value: 'Low Priority', isPositive: true },
-      cssClasses: {
-        cardGradient: 'bg-gradient-to-br from-white to-red-50/50 hover:to-red-100/50',
-        iconBg: 'bg-red-100',
-        iconColor: 'text-red-600',
-        trendBg: 'bg-red-50',
-        trendColor: 'text-red-700',
-        dotColor: 'bg-red-500',
-        waveColor: '#dc2626' // Red-600
+      trend: null,
+      theme: {
+        bg: 'bg-rose-50',
+        text: 'text-rose-600',
+        ring: 'ring-rose-500',
+        dot: 'bg-rose-500',
+        hex: '#f43f5e' // rose-500
       }
     },
   ], [stats]);
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-2">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-64 rounded-3xl bg-gray-100 animate-pulse border border-gray-200" />
+          <div key={i} className="h-44 rounded-2xl bg-white border border-slate-100 p-6 flex flex-col justify-between animate-pulse">
+            <div className="flex justify-between">
+              <div className="w-10 h-10 rounded-xl bg-slate-100" />
+              <div className="w-12 h-6 rounded-full bg-slate-100" />
+            </div>
+            <div className="space-y-2">
+              <div className="w-20 h-8 rounded bg-slate-100" />
+              <div className="w-32 h-4 rounded bg-slate-100" />
+            </div>
+          </div>
         ))}
       </div>
     );
@@ -256,9 +235,9 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-2">
-      {cards.map((card, index) => (
+      {cardConfig.map((card, index) => (
         <StatCard
-          key={card.title}
+          key={card.id}
           {...card}
           isActive={activeFilter === card.filter}
           onClick={onCardClick}
