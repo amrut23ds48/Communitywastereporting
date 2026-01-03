@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Users, Shield, ArrowRight, MapPin, 
-  Leaf, Recycle, Award, Zap,
-  Trophy, Globe, ShoppingBag, Camera, 
-  Play, Gift, TrendingUp, Search
+  Users, Shield, ArrowRight, Check, MapPin, TrendingUp, 
+  ShieldCheck, Leaf, Recycle, Award,
+  Target, BarChart3, Heart, Sparkles, Star, Zap,
+  Activity, Trophy, ChevronRight, Globe, IndianRupee
 } from 'lucide-react';
 
 interface RoleSelectionProps {
@@ -11,316 +11,382 @@ interface RoleSelectionProps {
 }
 
 export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
-  const [hoveredRole, setHoveredRole] = useState<'citizen' | 'admin' | null>(null);
-  const [impactCount, setImpactCount] = useState(15420);
+  const [selectedRole, setSelectedRole] = useState<'citizen' | 'admin' | null>(null);
+  const [recentActivity, setRecentActivity] = useState<string>('Loading live updates...');
+  
+  // Simulated stats with animation
+  const [stats, setStats] = useState({
+    reportsResolved: 14205,
+    activeVolunteers: 1240,
+    satisfactionRate: 98,
+    wasteCollected: 4500 // in kg
+  });
 
-  // 🇮🇳 Live Ticker Data
-  const [activeEvent, setActiveEvent] = useState(0);
-  const events = [
-    { text: "📍 Aarav just reported overflow in Koramangala, Bangalore", time: "2s ago" },
-    { text: "🚛 BMC Truck #42 dispatched to Marine Drive, Mumbai", time: "15s ago" },
-    { text: "♻️ 500kg Plastic processed in Karol Bagh, Delhi", time: "1m ago" },
-    { text: "🏆 Priya redeemed 200 Karma for Metro Card Recharge", time: "2m ago" },
-  ];
-
+  // 🇮🇳 Indian Context: Live Ticker Effect
   useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveEvent((prev) => (prev + 1) % events.length);
-      setImpactCount(prev => prev + Math.floor(Math.random() * 3));
-    }, 3000);
-    return () => clearInterval(timer);
+    const activities = [
+      "🌿 Priya S. reported garbage in Indiranagar, Bangalore",
+      "✅ Swachh Bharat Team cleared Sector 17, Chandigarh",
+      "🏆 Rohan K. earned 'Green Warrior' badge in Mumbai",
+      "🚛 Collection truck dispatched to Connaught Place, Delhi",
+      "♻️ 50kg of plastic recycled in Andheri West today",
+      "🙏 Ananya M. donated 500 Karma Points to tree plantation"
+    ];
+    
+    let index = 0;
+    setRecentActivity(activities[0]);
+    
+    const ticker = setInterval(() => {
+      index = (index + 1) % activities.length;
+      setRecentActivity(activities[index]);
+    }, 4500);
+
+    const statTimer = setInterval(() => {
+      setStats(prev => ({
+        ...prev,
+        reportsResolved: prev.reportsResolved + (Math.random() > 0.6 ? 1 : 0),
+        wasteCollected: prev.wasteCollected + Math.floor(Math.random() * 5)
+      }));
+    }, 2500);
+
+    return () => {
+      clearInterval(ticker);
+      clearInterval(statTimer);
+    };
   }, []);
 
-  // 🇮🇳 Indian Leaderboard
+  const handleRoleSelect = (role: 'citizen' | 'admin') => {
+    setSelectedRole(role);
+    setTimeout(() => onSelectRole(role), 500);
+  };
+
+  const roles = [
+    {
+      id: 'citizen',
+      title: 'Nagrik (Citizen)',
+      subtitle: 'Report, Earn Karma, Impact',
+      description: 'Be a responsible citizen. Report issues in your locality, track cleanups, and earn Green Karma points.',
+      icon: Users,
+      features: [
+        { text: 'Snap & Report (Geo-tagged)', icon: MapPin },
+        { text: 'Earn Green Karma Points', icon: Award },
+        { text: 'Leaderboard Recognition', icon: Trophy }
+      ],
+      stats: '25k+ Active Indians',
+      color: 'emerald',
+      bgGradient: 'from-emerald-600 to-teal-600',
+      shadow: 'shadow-emerald-500/20'
+    },
+    {
+      id: 'admin',
+      title: 'Admin Authority',
+      subtitle: 'Municipal & NGO Management',
+      description: 'For municipal officers and NGO leaders to manage resources, analyze heatmaps, and dispatch cleanup crews.',
+      icon: Shield,
+      features: [
+        { text: 'Dispatch Cleanup Crews', icon: ShieldCheck },
+        { text: 'City-wide Heatmaps', icon: BarChart3 },
+        { text: 'Impact Analytics', icon: Target }
+      ],
+      stats: 'Authorized Personnel Only',
+      color: 'blue',
+      bgGradient: 'from-blue-600 to-indigo-600',
+      shadow: 'shadow-blue-500/20'
+    }
+  ];
+
+  const wasteTypes = [
+    { type: 'Wet Waste', color: 'bg-green-500', percentage: 55, sub: 'Kitchen/Organic' },
+    { type: 'Dry Waste', color: 'bg-blue-500', percentage: 30, sub: 'Plastic/Paper' },
+    { type: 'E-Waste', color: 'bg-red-500', percentage: 15, sub: 'Electronics' }
+  ];
+
+  // 🇮🇳 Indian Names for Leaderboard
   const leaderboard = [
-    { rank: 1, name: "Vikram Malhotra", city: "Mumbai", points: 4200, avatar: "bg-orange-500" },
-    { rank: 2, name: "Ananya Gupta", city: "Delhi", points: 3950, avatar: "bg-green-500" },
-    { rank: 3, name: "Rahul Nair", city: "Kochi", points: 3800, avatar: "bg-blue-500" },
+    { name: "Aditya Sharma", location: "Pune", points: 2850, badge: "Eco King" },
+    { name: "Diya Patel", location: "Ahmedabad", points: 2640, badge: "Recycler" },
+    { name: "Arjun Singh", location: "Jaipur", points: 2300, badge: "Scout" },
+    { name: "Meera Reddy", location: "Hyderabad", points: 2150, badge: "Guardian" },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4F6F8] font-sans text-slate-900 selection:bg-emerald-200 selection:text-emerald-900">
+    <div className="min-h-screen bg-[#F0F4F8] relative overflow-hidden font-sans selection:bg-orange-200 selection:text-orange-900">
       
-      {/* Navbar / Top Header */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/60 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-700 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-200">
-              <Leaf className="w-5 h-5" />
-            </div>
-            <span className="text-xl font-extrabold tracking-tight text-slate-800">
-              Swachh<span className="text-emerald-600">Flow</span>
-            </span>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-500">
-            <span className="hover:text-emerald-600 cursor-pointer transition-colors">Mission</span>
-            <span className="hover:text-emerald-600 cursor-pointer transition-colors">Impact</span>
-            <span className="hover:text-emerald-600 cursor-pointer transition-colors">Partners</span>
-          </div>
+      {/* Dynamic Background Mesh (Tricolor hint - Saffron, White, Green hints) */}
+      <div className="absolute inset-0 z-0 opacity-60">
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-orange-200/30 blur-[120px] animate-pulse"></div>
+        <div className="absolute top-[30%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-200/30 blur-[120px]"></div>
+        <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] rounded-full bg-emerald-200/30 blur-[120px] animate-pulse delay-1000"></div>
+      </div>
 
-          <button className="bg-slate-900 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200">
-            Download App
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-8 lg:py-12">
+      <div className="relative z-10 container mx-auto px-4 py-8 lg:py-10 max-w-7xl">
         
-        {/* Section 1: Hero & Ticker */}
-        <div className="mb-12 text-center">
-          <div className="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-full px-4 py-1.5 mb-6 shadow-sm animate-fade-in-up">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Live Activity:</span>
-            <span className="text-xs font-medium text-slate-800">{events[activeEvent].text}</span>
-            <span className="text-[10px] text-slate-400 border-l border-slate-200 pl-2">{events[activeEvent].time}</span>
+        {/* 🇮🇳 Top Bar: Live Activity Ticker */}
+        <div className="flex justify-center mb-12">
+          <div className="bg-white/90 backdrop-blur-md shadow-lg shadow-slate-200/50 border border-white/60 rounded-full pl-2 pr-6 py-2 flex items-center gap-4 animate-fade-in-down max-w-2xl w-full">
+            <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-600"></span>
+              </span>
+              Live Feed
+            </div>
+            <p className="text-sm font-medium text-slate-700 truncate flex-1">
+              {recentActivity}
+            </p>
           </div>
+        </div>
 
-          <h1 className="text-5xl md:text-7xl font-black text-slate-900 mb-6 tracking-tight leading-[1.1]">
-            Clean India starts <br className="hidden md:block" />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 via-teal-500 to-blue-600">
-              with a single click.
+        {/* Hero Header */}
+        <div className="text-center max-w-4xl mx-auto mb-16 relative">
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-gradient-to-tr from-green-400 to-blue-500 rounded-full blur-3xl opacity-50"></div>
+          <h1 className="text-6xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-none">
+            Clean India. <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-slate-500 to-green-600">
+              Green Future.
             </span>
           </h1>
-          <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
-            The next-generation waste management platform powered by AI. 
-            Join <span className="font-bold text-slate-900">25,000+ citizens</span> making India cleaner, one photo at a time.
+          <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            Join the <span className="font-bold text-slate-900">Swachh Bharat</span> digital revolution. 
+            Report waste, coordinate cleanups, and track real-time impact in your city.
           </p>
         </div>
 
-        {/* Section 2: The Command Center Grid (Bento Layout) */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[minmax(180px,auto)]">
+        {/* Main Content Grid */}
+        <div className="grid lg:grid-cols-12 gap-8 items-start">
           
-          {/* Card 1: Citizen Portal (Large) */}
-          <div 
-            className="md:col-span-7 row-span-2 relative group overflow-hidden rounded-[2.5rem] bg-white border border-slate-200 shadow-xl shadow-slate-200/40 hover:shadow-2xl hover:shadow-emerald-100/50 transition-all duration-500 cursor-pointer"
-            onMouseEnter={() => setHoveredRole('citizen')}
-            onMouseLeave={() => setHoveredRole(null)}
-            onClick={() => onSelectRole('citizen')}
-          >
-            {/* Background Gradient Blob */}
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-emerald-50 rounded-full blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2 group-hover:bg-emerald-100 transition-colors duration-500"></div>
-
-            <div className="relative h-full p-8 flex flex-col justify-between z-10">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold uppercase tracking-wider">
-                    For Citizens
-                  </span>
-                  <ArrowRight className="w-6 h-6 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
-                </div>
-                <h2 className="text-3xl font-bold text-slate-900 mb-2 group-hover:text-emerald-700 transition-colors">
-                  Report & Earn
-                </h2>
-                <p className="text-slate-500 max-w-sm">
-                  Spot waste? Snap a photo. Our AI verifies it, authorities clean it, and you earn <span className="font-bold text-emerald-600">Karma Points</span>.
-                </p>
-              </div>
-
-              {/* Interactive Feature Preview */}
-              <div className="mt-8 grid grid-cols-3 gap-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group-hover:border-emerald-200 transition-colors">
-                  <Camera className="w-6 h-6 text-emerald-600 mb-3" />
-                  <div className="text-sm font-bold text-slate-800">Snap</div>
-                  <div className="text-[10px] text-slate-500">Geo-tagged proof</div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group-hover:border-emerald-200 transition-colors">
-                  <Zap className="w-6 h-6 text-amber-500 mb-3" />
-                  <div className="text-sm font-bold text-slate-800">Verify</div>
-                  <div className="text-[10px] text-slate-500">AI analysis (98%)</div>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group-hover:border-emerald-200 transition-colors">
-                  <Gift className="w-6 h-6 text-purple-500 mb-3" />
-                  <div className="text-sm font-bold text-slate-800">Redeem</div>
-                  <div className="text-[10px] text-slate-500">Coupons & Cash</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Admin Portal (Medium) */}
-          <div 
-            className="md:col-span-5 row-span-2 relative group overflow-hidden rounded-[2.5rem] bg-slate-900 text-white border border-slate-800 shadow-xl shadow-slate-900/20 hover:scale-[1.01] transition-all duration-500 cursor-pointer"
-            onClick={() => onSelectRole('admin')}
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800 z-0"></div>
-            <div className="absolute bottom-0 right-0 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl z-0"></div>
-
-            <div className="relative z-10 p-8 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-6">
-                <span className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-bold uppercase tracking-wider">
-                  Official Access
-                </span>
-                <Shield className="w-6 h-6 text-slate-400 group-hover:text-blue-400 transition-colors" />
-              </div>
-              
-              <h2 className="text-3xl font-bold mb-2">City Admin</h2>
-              <p className="text-slate-400 text-sm mb-8">
-                Monitor cleanliness levels, manage sanitation crews, and analyze city-wide data heatmaps.
-              </p>
-
-              {/* Mock Graph */}
-              <div className="mt-auto bg-white/5 rounded-2xl p-4 border border-white/10 backdrop-blur-sm">
-                <div className="flex justify-between items-end h-16 gap-2">
-                  {[40, 65, 45, 80, 55, 90, 75].map((h, i) => (
-                    <div key={i} className="w-full bg-blue-500/50 rounded-t-sm hover:bg-blue-400 transition-colors" style={{ height: `${h}%` }}></div>
-                  ))}
-                </div>
-                <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-mono">
-                  <span>MON</span>
-                  <span>WED</span>
-                  <span>FRI</span>
-                  <span>SUN</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Leaderboard Widget */}
-          <div className="md:col-span-4 bg-white rounded-[2rem] p-6 border border-slate-200 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Trophy className="w-4 h-4 text-amber-500" />
-                Top Heroes
-              </h3>
-              <span className="text-xs text-emerald-600 font-semibold cursor-pointer">View All</span>
-            </div>
-            <div className="space-y-4">
-              {leaderboard.map((user) => (
-                <div key={user.rank} className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full ${user.avatar} text-white flex items-center justify-center text-xs font-bold shadow-md`}>
-                    {user.rank}
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-sm font-bold text-slate-800">{user.name}</div>
-                    <div className="text-[10px] text-slate-400">{user.city}</div>
-                  </div>
-                  <div className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-1 rounded-md">
-                    {user.points} pts
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Card 4: Rewards Marketplace Preview */}
-          <div className="md:col-span-4 bg-gradient-to-br from-orange-50 to-orange-100/50 rounded-[2rem] p-6 border border-orange-100 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-orange-900 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-orange-600" />
-                Rewards Shop
-              </h3>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-orange-100/50 shadow-sm">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center text-[10px] font-bold text-red-600">
-                  Zomato
+          {/* Left Column: Stats & Impact (3 cols) */}
+          <div className="lg:col-span-3 space-y-6 hidden lg:block">
+            {/* National Impact Card */}
+            <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-3xl p-6 shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-all duration-300 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-orange-100 rounded-2xl group-hover:scale-110 transition-transform">
+                  <Globe className="w-6 h-6 text-orange-600" />
                 </div>
                 <div>
-                  <div className="text-xs font-bold text-slate-800">50% Off Food</div>
-                  <div className="text-[10px] text-orange-600 font-bold">500 Karma</div>
+                  <h3 className="font-bold text-slate-800">National Impact</h3>
+                  <p className="text-xs text-slate-500">Live stats across India</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-orange-100/50 shadow-sm">
-                <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center text-[10px] font-bold text-white">
-                  Uber
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-800">Free Ride</div>
-                  <div className="text-[10px] text-orange-600 font-bold">1200 Karma</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 5: AI Tech Showcase */}
-          <div className="md:col-span-4 bg-slate-900 text-white rounded-[2rem] p-6 border border-slate-800 shadow-lg relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl"></div>
-            <div className="relative z-10">
-               <h3 className="font-bold mb-1 flex items-center gap-2">
-                <Search className="w-4 h-4 text-purple-400" />
-                AI Detection
-              </h3>
-              <p className="text-xs text-slate-400 mb-4">Instant waste classification.</p>
               
-              <div className="relative h-24 bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
-                {/* Simulated Scanning Line */}
-                <div className="absolute top-0 left-0 w-1 h-full bg-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.8)] animate-scan"></div>
-                
-                <div className="absolute inset-0 flex items-center justify-center">
-                   <span className="text-xs font-mono text-purple-300">Scanning Image...</span>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center p-3 bg-white/50 rounded-xl">
+                  <span className="text-sm text-slate-600">Reports</span>
+                  <span className="font-bold text-slate-900">{stats.reportsResolved.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-white/50 rounded-xl">
+                  <span className="text-sm text-slate-600">Volunteers</span>
+                  <span className="font-bold text-slate-900">{stats.activeVolunteers.toLocaleString()}</span>
                 </div>
                 
-                {/* Detection Box */}
-                <div className="absolute top-4 left-4 border border-green-500 bg-green-500/10 px-2 py-0.5 rounded text-[10px] text-green-400">
-                   Plastic (98%)
+                <div className="mt-4 pt-4 border-t border-slate-200/50">
+                  <div className="text-center">
+                    <span className="text-4xl font-bold text-emerald-600 block mb-1">{stats.wasteCollected}kg</span>
+                    <span className="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2 py-1 rounded-full uppercase tracking-wider">
+                      Waste Removed
+                    </span>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Waste Composition */}
+            <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-3xl p-6 shadow-xl shadow-slate-200/50">
+              <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wide">Waste Analysis</h3>
+              <div className="space-y-5">
+                {wasteTypes.map((waste) => (
+                  <div key={waste.type}>
+                    <div className="flex justify-between items-end mb-2">
+                      <div>
+                        <span className="block font-bold text-slate-700 text-sm">{waste.type}</span>
+                        <span className="block text-[10px] text-slate-400">{waste.sub}</span>
+                      </div>
+                      <span className="font-bold text-slate-900">{waste.percentage}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-white rounded-full overflow-hidden shadow-inner">
+                      <div 
+                        className={`h-full ${waste.color} transition-all duration-1000 ease-out`}
+                        style={{ width: `${waste.percentage}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
+          {/* Middle Column: Role Selection (6 cols) */}
+          <div className="lg:col-span-6 flex flex-col gap-6">
+            {roles.map((role) => {
+              const Icon = role.icon;
+              const isSelected = selectedRole === role.id;
+              
+              return (
+                <button
+                  key={role.id}
+                  onClick={() => handleRoleSelect(role.id as 'citizen' | 'admin')}
+                  className={`group relative w-full text-left transition-all duration-500 perspective-1000`}
+                >
+                  <div className={`
+                    relative z-10 overflow-hidden
+                    h-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 border-2 
+                    transition-all duration-300 ease-out
+                    ${isSelected 
+                      ? `border-${role.color}-500 scale-[1.02] shadow-2xl` 
+                      : 'border-white/50 hover:border-slate-300 hover:bg-white/90 shadow-xl'
+                    }
+                  `}>
+                    
+                    {/* Background Gradient Blob on Hover */}
+                    <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${role.bgGradient} opacity-0 group-hover:opacity-10 rounded-full blur-3xl transition-opacity duration-500`}></div>
+
+                    <div className="flex flex-col sm:flex-row items-start gap-6 relative">
+                      {/* Icon Box */}
+                      <div className={`
+                        shrink-0 w-20 h-20 rounded-2xl flex items-center justify-center 
+                        bg-gradient-to-br ${role.bgGradient} text-white shadow-lg
+                        transform group-hover:rotate-3 transition-transform duration-300
+                      `}>
+                        <Icon className="w-10 h-10" />
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="text-2xl font-bold text-slate-900 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-slate-900 group-hover:to-slate-600 transition-all">
+                              {role.title}
+                            </h3>
+                            <p className={`text-sm font-semibold uppercase tracking-wider mb-3 mt-1 text-${role.color}-600`}>
+                              {role.subtitle}
+                            </p>
+                          </div>
+                          {isSelected && <div className="animate-scale-in bg-green-500 text-white p-1 rounded-full"><Check className="w-5 h-5"/></div>}
+                        </div>
+                        
+                        <p className="text-slate-600 text-base leading-relaxed mb-6">
+                          {role.description}
+                        </p>
+
+                        <div className="flex flex-wrap gap-3 mb-8">
+                          {role.features.map((feature, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-white/80 border border-slate-100 px-3 py-2 rounded-lg shadow-sm">
+                              <feature.icon className={`w-3.5 h-3.5 text-${role.color}-600`} />
+                              {feature.text}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* CTA Button */}
+                        <div className={`
+                          w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-white 
+                          flex items-center justify-center sm:justify-start gap-3 
+                          bg-gradient-to-r ${role.bgGradient} 
+                          shadow-lg ${role.shadow}
+                          group-hover:shadow-xl group-hover:translate-x-1 transition-all
+                        `}>
+                          <span>{isSelected ? 'Processing...' : 'Continue'}</span>
+                          <ArrowRight className={`w-5 h-5 ${isSelected ? 'animate-ping' : ''}`} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Column: Leaderboard (3 cols) */}
+          <div className="lg:col-span-3 space-y-6">
+            
+            {/* Top Eco-Warriors Widget */}
+            <div className="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden">
+              {/* Decorative elements */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-yellow-500/20 rounded-full blur-[50px] animate-pulse"></div>
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-[40px]"></div>
+
+              <div className="flex items-center justify-between mb-8 relative z-10">
+                <div>
+                  <h3 className="font-bold text-lg flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-yellow-400" />
+                    Top Warriors
+                  </h3>
+                  <p className="text-xs text-slate-400">This week's heroes</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 relative z-10">
+                {leaderboard.map((user, index) => (
+                  <div key={index} className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group cursor-pointer">
+                    <div className={`
+                      w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg
+                      ${index === 0 ? 'bg-gradient-to-tr from-yellow-300 to-yellow-600 text-yellow-900' : 
+                        index === 1 ? 'bg-gradient-to-tr from-slate-300 to-slate-500 text-slate-900' :
+                        index === 2 ? 'bg-gradient-to-tr from-orange-300 to-orange-500 text-orange-900' :
+                        'bg-slate-700 text-slate-300'}
+                    `}>
+                      {index + 1}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">{user.name}</div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                        <MapPin className="w-3 h-3" /> {user.location}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-emerald-400">{user.points}</div>
+                      <div className="text-[10px] text-slate-500">Karma</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button className="w-full mt-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold uppercase tracking-wider transition-colors border border-white/5">
+                View Full Leaderboard
+              </button>
+            </div>
+
+            {/* How It Works (Simplified) */}
+            <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-3xl p-6 shadow-xl">
+              <h4 className="font-bold text-slate-800 text-sm mb-4">How to Earn Karma?</h4>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-3 text-sm text-slate-600">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">1</div>
+                  Snap a photo of waste
+                </li>
+                <li className="flex items-center gap-3 text-sm text-slate-600">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">2</div>
+                  Get AI verification
+                </li>
+                <li className="flex items-center gap-3 text-sm text-slate-600">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">3</div>
+                  Receive 50 Karma Points
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
 
-        {/* Section 3: Live Impact Stats */}
-        <div className="mt-12 bg-white rounded-3xl border border-slate-200 p-8 shadow-sm flex flex-wrap justify-between items-center gap-8">
-          <div>
-             <div className="text-sm text-slate-500 font-medium mb-1">Total Reports Resolved</div>
-             <div className="text-4xl font-black text-slate-900 tracking-tight">
-               {impactCount.toLocaleString()}
-             </div>
-          </div>
-          <div className="h-10 w-px bg-slate-200 hidden md:block"></div>
-          <div>
-             <div className="text-sm text-slate-500 font-medium mb-1">Volunteers Active</div>
-             <div className="text-4xl font-black text-slate-900 tracking-tight">
-               12,405
-             </div>
-          </div>
-          <div className="h-10 w-px bg-slate-200 hidden md:block"></div>
-          <div>
-             <div className="text-sm text-slate-500 font-medium mb-1">Waste Recycled</div>
-             <div className="text-4xl font-black text-emerald-600 tracking-tight">
-               840 <span className="text-xl text-emerald-700 font-bold">tons</span>
-             </div>
-          </div>
-          
-          <div className="ml-auto">
-             <button className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors">
-               See Live Map <ArrowRight className="w-4 h-4" />
-             </button>
-          </div>
-        </div>
-
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-12 py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-slate-400 text-sm">
-            © 2025 SwachhFlow India. Part of the <span className="font-semibold text-slate-600">Digital India Initiative</span>.
+        {/* Footer */}
+        <footer className="mt-20 text-center pb-8">
+          <p className="text-slate-500 text-sm font-medium">
+            Proudly Made in 🇮🇳 • Contributing to <span className="text-orange-600 font-bold">Swachh Bharat Abhiyan</span>
           </p>
-          <div className="flex justify-center gap-4 mt-4 opacity-50">
-            <img src="https://upload.wikimedia.org/wikipedia/en/thumb/9/95/Swachh_Bharat_Mission_Logo.svg/1200px-Swachh_Bharat_Mission_Logo.svg.png" alt="Swachh Bharat" className="h-8 grayscale hover:grayscale-0 transition-all" />
-          </div>
-        </div>
-      </footer>
+        </footer>
+
+      </div>
 
       <style>{`
-        @keyframes scan {
-          0% { left: 0%; }
-          50% { left: 100%; }
-          100% { left: 0%; }
-        }
-        .animate-scan {
-          animation: scan 3s linear infinite;
-        }
-        .animate-fade-in-up {
-          animation: fadeInUp 0.8s ease-out;
-        }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(10px); }
+        .perspective-1000 { perspective: 1000px; }
+        .animate-fade-in-down { animation: fadeInDown 0.8s ease-out; }
+        @keyframes fadeInDown {
+          from { opacity: 0; transform: translateY(-20px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes scaleIn {
+          from { transform: scale(0); }
+          to { transform: scale(1); }
+        }
+        .animate-scale-in { animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
       `}</style>
     </div>
   );

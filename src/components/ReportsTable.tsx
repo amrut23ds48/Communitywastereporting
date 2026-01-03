@@ -1,12 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { Check, X, Calendar, MapPin, Filter, ZoomIn, Loader2, RefreshCw, Play } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Check, X, Calendar, MapPin, Search, Download, 
+  ChevronLeft, ChevronRight, AlertTriangle, Clock, 
+  CheckCircle2, ArrowUpDown, MoreVertical, Trash2, 
+  Eye, Filter, RefreshCw, ZoomIn, Loader2, Layers,
+  ArrowUpRight
+} from 'lucide-react';
 import { getReports, subscribeToReports } from '../db/reports';
 import { updateReportStatus, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
 import type { Database } from '../utils/supabase/client';
 
 type Report = Database['public']['Tables']['reports']['Row'];
 type ReportStatus = Report['status'];
+type SortConfig = { key: keyof Report | 'priority'; direction: 'asc' | 'desc' };
 
+// --- Sub-Component: Table Skeleton ---
+const TableSkeleton = () => (
+  <tbody className="animate-pulse">
+    {[1, 2, 3, 4, 5].map((i) => (
+      <tr key={i} className="border-b border-slate-50">
+        <td className="p-4"><div className="h-4 w-4 bg-slate-200 rounded" /></td>
+        <td className="p-4"><div className="h-12 w-12 bg-slate-200 rounded-lg" /></td>
+        <td className="p-4">
+          <div className="h-4 w-32 bg-slate-200 rounded mb-2" />
+          <div className="h-3 w-20 bg-slate-100 rounded" />
+        </td>
+        <td className="p-4"><div className="h-6 w-16 bg-slate-200 rounded-full" /></td>
+        <td className="p-4"><div className="h-6 w-24 bg-slate-200 rounded-full" /></td>
+        <td className="p-4"><div className="h-8 w-8 bg-slate-200 rounded-full ml-auto" /></td>
+      </tr>
+    ))}
+  </tbody>
+);
+
+// --- Sub-Component: Status Badge ---
+const StatusBadge = ({ status }: { status: string }) => {
+  const styles = {
+    open: 'bg-red-50 text-red-700 border-red-100',
+    in_progress: 'bg-amber-50 text-amber-700 border-amber-100',
+    resolved: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    false_report: 'bg-slate-50 text-slate-700 border-slate-100'
+  };
+
+  const labels = {
+    open: 'Open Issue',
+    in_progress: 'In Progress',
+    resolved: 'Resolved',
+    false_report: 'False Flag'
+  };
+
+  return (
+    <span className={`
+      inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border
+      ${styles[status as keyof typeof styles] || styles.open}
+    `}>
+      <span className={`w-1.5 h-1.5 rounded-full ${status === 'open' ? 'bg-red-500 animate-pulse' : 'bg-current'}`} />
+      {labels[status as keyof typeof labels] || status}
+    </span>
+  );
+};
+
+// --- Main Component ---
 interface ReportsTableProps {
   initialFilter?: string;
   onFilterChange?: (filter: string) => void;
@@ -15,317 +69,403 @@ interface ReportsTableProps {
 export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsTableProps) {
   const [reports, setReports] = useState<Report[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>(initialFilter);
-  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [adminId, setAdminId] = useState<string | null>(null);
+  
+  // UI States
+  const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'created_at', direction: 'desc' });
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  React.useEffect(() => {
-    setFilterStatus(initialFilter);
-  }, [initialFilter]);
-
-  // Get current admin
-  // Get current admin
+  // --- Initialization ---
   useEffect(() => {
     const fetchAdmin = async () => {
       const { userId } = await getCurrentAdmin();
       setAdminId(userId);
     };
     fetchAdmin();
-
-    const unsubscribe = subscribeToAuthChanges((userId) => {
-      setAdminId(userId);
-    });
-
-    return () => {
-      unsubscribe();
-    };
+    const unsubscribe = subscribeToAuthChanges(setAdminId);
+    return () => unsubscribe();
   }, []);
 
-  // Fetch reports and subscribe
   useEffect(() => {
     fetchReports();
-
     const unsubscribe = subscribeToReports(
-      (payload) => {
-        console.log('[ReportsTable] Realtime event received, refreshing...');
-        fetchReports();
-      },
+      () => fetchReports(), 
       filterStatus !== 'all' ? { status: filterStatus as ReportStatus } : undefined
     );
-
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [filterStatus]);
 
   const fetchReports = async () => {
     if (reports.length === 0) setLoading(true);
-
-    console.log('[ReportsTable] Fetching reports with status:', filterStatus);
-
     try {
-      const { data, error } = await getReports({
+      const { data } = await getReports({
         status: filterStatus === 'all' ? undefined : filterStatus as ReportStatus,
       });
-
-      if (error) {
-        console.error('[ReportsTable] Error in fetchReports:', error);
-      } else if (data) {
-        console.log('[ReportsTable] Reports loaded:', data.length);
-        setReports(data);
-      }
+      if (data) setReports(data);
     } catch (error) {
-      console.error('[ReportsTable] Exception in fetchReports:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFilterChange = (newFilter: string) => {
-    setFilterStatus(newFilter);
-    onFilterChange?.(newFilter);
-  };
-
+  // --- Logic Helpers ---
   const handleStatusChange = async (reportId: string, newStatus: ReportStatus) => {
-    if (!adminId) {
-      alert('You must be logged in as admin to update status');
-      return;
-    }
-
-    setUpdatingStatus(reportId);
-
+    if (!adminId) return;
+    setUpdatingId(reportId);
     try {
-      const { error } = await updateReportStatus(reportId, newStatus, adminId);
-
-      if (error) {
-        console.error('Error updating status:', error);
-        alert('Failed to update status: ' + error.message);
-      } else {
-        // Manual refresh since subscriptions might be mocked
-        fetchReports();
-      }
+      await updateReportStatus(reportId, newStatus, adminId);
+      setReports(prev => prev.map(r => r.id === reportId ? { ...r, status: newStatus } : r));
     } catch (error) {
-      console.error('Error:', error);
-      alert('Failed to update status');
+      console.error(error);
     } finally {
-      setUpdatingStatus(null);
+      setUpdatingId(null);
     }
   };
 
-
-
-  const getStatusBadge = (status: string) => {
-    const styles = {
-      open: 'bg-red-100 text-red-700',
-      in_progress: 'bg-yellow-100 text-yellow-700',
-      resolved: 'bg-green-100 text-green-700',
-      false: 'bg-gray-100 text-gray-700',
-    };
-    return styles[status as keyof typeof styles] || styles.open;
+  const toggleSort = (key: keyof Report | 'priority') => {
+    setSortConfig(current => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+    }));
   };
 
-  const filteredReports = reports;
+  const toggleSelectAll = () => {
+    if (selectedRows.size === processedReports.length) {
+      setSelectedRows(new Set());
+    } else {
+      setSelectedRows(new Set(processedReports.map(r => r.id)));
+    }
+  };
+
+  const toggleRow = (id: string) => {
+    const newSet = new Set(selectedRows);
+    if (newSet.has(id)) newSet.delete(id);
+    else newSet.add(id);
+    setSelectedRows(newSet);
+  };
+
+  // --- Data Processing ---
+  const processedReports = useMemo(() => {
+    let data = [...reports];
+
+    // Filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(r => 
+        r.street_name?.toLowerCase().includes(q) || 
+        r.city?.toLowerCase().includes(q) || 
+        r.description?.toLowerCase().includes(q)
+      );
+    }
+
+    // Sort
+    data.sort((a, b) => {
+      const aValue = a[sortConfig.key as keyof Report];
+      const bValue = b[sortConfig.key as keyof Report];
+      
+      if (sortConfig.key === 'priority') {
+        const getAge = (date: string) => new Date().getTime() - new Date(date).getTime();
+        return sortConfig.direction === 'asc' 
+          ? getAge(a.created_at) - getAge(b.created_at)
+          : getAge(b.created_at) - getAge(a.created_at);
+      }
+      return 0;
+    });
+
+    return data;
+  }, [reports, searchQuery, sortConfig]);
+
+  // Priority Calculator
+  const getPriority = (dateStr: string) => {
+    const hours = (new Date().getTime() - new Date(dateStr).getTime()) / (1000 * 60 * 60);
+    if (hours > 48) return { label: 'CRITICAL', color: 'text-red-600 bg-red-100 border-red-200' };
+    if (hours > 24) return { label: 'HIGH', color: 'text-orange-600 bg-orange-100 border-orange-200' };
+    if (hours > 12) return { label: 'MEDIUM', color: 'text-amber-600 bg-amber-100 border-amber-200' };
+    return { label: 'LOW', color: 'text-emerald-600 bg-emerald-100 border-emerald-200' };
+  };
 
   return (
-    <div className="bg-white rounded-xl shadow-md">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl text-gray-900">Reports Management</h2>
-            <button
-              onClick={fetchReports}
-              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
-              title="Refresh Data"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl flex flex-col h-[calc(100vh-120px)] min-h-[600px] relative overflow-hidden">
+      
+      {/* 1. Command Center Header (Dark) */}
+      <div className="bg-slate-900 p-6 z-20">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          
+          {/* Title Block */}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+               <h2 className="text-xl font-bold text-white tracking-tight">Operations Console</h2>
+               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Live
+               </span>
+            </div>
+            <div className="flex items-center gap-4 text-xs font-medium text-slate-400">
+              <span>All Tickets: <span className="text-white">{reports.length}</span></span>
+              <span className="w-1 h-1 rounded-full bg-slate-700" />
+              <span>Pending Action: <span className="text-orange-400">{reports.filter(r => r.status === 'open').length}</span></span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <select
-              value={filterStatus}
-              onChange={(e) => handleFilterChange(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          {/* Controls Block */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search */}
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-emerald-400 transition-colors" />
+              <input 
+                type="text" 
+                placeholder="Search location, ID..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full sm:w-64 pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+              />
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-700">
+              {['all', 'open', 'resolved'].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => { setFilterStatus(t); onFilterChange?.(t); }}
+                  className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all capitalize ${
+                    filterStatus === t 
+                      ? 'bg-slate-700 text-white shadow-sm' 
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <button 
+                onClick={() => fetchReports()} 
+                className="p-2.5 bg-slate-800 border border-slate-700 rounded-xl text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
             >
-              <option value="all">All Reports</option>
-              <option value="open">Open</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="false">False Reports</option>
-            </select>
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
+      {/* 2. Data Grid */}
+      <div className="flex-1 overflow-auto relative bg-slate-50/50">
+        <table className="w-full text-left border-collapse">
+          {/* Sticky Header */}
+          <thead className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
             <tr>
-              <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
-                Image
+              <th className="px-6 py-4 w-14">
+                <input 
+                  type="checkbox" 
+                  checked={selectedRows.size === processedReports.length && processedReports.length > 0}
+                  onChange={toggleSelectAll}
+                  className="rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
+                />
               </th>
-              <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
-                Location
+              <th className="px-6 py-4">Evidence</th>
+              <th className="px-6 py-4 cursor-pointer hover:text-emerald-600 group transition-colors" onClick={() => toggleSort('street_name')}>
+                <div className="flex items-center gap-1">Location <ArrowUpDown className="w-3 h-3 opacity-30 group-hover:opacity-100" /></div>
               </th>
-              <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
-                Description
+              <th className="px-6 py-4 cursor-pointer hover:text-emerald-600 group transition-colors" onClick={() => toggleSort('priority')}>
+                <div className="flex items-center gap-1">Severity <ArrowUpDown className="w-3 h-3 opacity-30 group-hover:opacity-100" /></div>
               </th>
-              <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
-                Date
+              <th className="px-6 py-4 cursor-pointer hover:text-emerald-600 group transition-colors" onClick={() => toggleSort('status')}>
+                <div className="flex items-center gap-1">Status <ArrowUpDown className="w-3 h-3 opacity-30 group-hover:opacity-100" /></div>
               </th>
-              <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs text-gray-600 uppercase tracking-wider">
-                Actions
-              </th>
+              <th className="px-6 py-4 text-right">Controls</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-4 text-center">
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto text-blue-500" />
-                </td>
-              </tr>
-            ) : filteredReports.length > 0 ? (
-              filteredReports.map((report) => (
-                <tr key={report.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div
-                      className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all relative group"
-                      onClick={() => setExpandedImage(report.image_url)}
-                    >
-                      <img
-                        src={report.image_url}
-                        alt="Waste report"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center">
-                        <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <div className="text-sm text-gray-900">{report.street_name}</div>
-                        <div className="text-xs text-gray-500">{report.city}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-xs truncate" title={report.description || ''}>
-                      {report.description}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {new Date(report.created_at).toLocaleDateString()}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
 
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs capitalize ${getStatusBadge(
-                          report.status
-                        )}`}
+          {/* Table Body */}
+          {loading ? (
+             <TableSkeleton />
+          ) : (
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {processedReports.map((report) => {
+                const priority = getPriority(report.created_at);
+                const isSelected = selectedRows.has(report.id);
+                
+                return (
+                  <tr 
+                    key={report.id} 
+                    className={`group transition-all duration-200 ${
+                        isSelected ? 'bg-emerald-50/40' : 'hover:bg-slate-50 hover:shadow-sm'
+                    }`}
+                  >
+                    {/* Checkbox */}
+                    <td className="px-6 py-4">
+                      <input 
+                        type="checkbox" 
+                        checked={isSelected}
+                        onChange={() => toggleRow(report.id)}
+                        className="rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" 
+                      />
+                    </td>
+                    
+                    {/* Image Thumbnail */}
+                    <td className="px-6 py-4">
+                      <button 
+                        className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 shadow-sm group-hover:shadow-md group-hover:scale-105 transition-all group-hover:ring-2 group-hover:ring-emerald-500/20"
+                        onClick={() => setExpandedImage(report.image_url)}
                       >
-                        {report.status.replace('_', ' ').replace('-', ' ')}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {report.status !== 'resolved' && report.status !== 'false_report' && (
-                        <>
-                          {report.status === 'open' && (
-                            <button
-                              onClick={() => handleStatusChange(report.id, 'in_progress')}
-                              disabled={updatingStatus === report.id}
-                              className="p-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg transition-colors disabled:opacity-50"
-                              title="Mark as In Progress"
+                        <img 
+                          src={report.image_url} 
+                          className="w-full h-full object-cover" 
+                          alt="Report"
+                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100?text=No+Img'; }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-colors">
+                            <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 drop-shadow-md" />
+                        </div>
+                      </button>
+                    </td>
+
+                    {/* Location */}
+                    <td className="px-6 py-4 max-w-[240px]">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-800 truncate" title={report.street_name}>
+                          {report.street_name || 'Unknown Location'}
+                        </span>
+                        <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span className="truncate">{report.city || 'Unknown City'}</span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400 font-medium">
+                          <Clock className="w-3 h-3" />
+                          {new Date(report.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Priority Badge */}
+                    <td className="px-6 py-4">
+                      <div className={`inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border shadow-sm ${priority.color}`}>
+                        {priority.label === 'CRITICAL' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                        {priority.label}
+                      </div>
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="px-6 py-4">
+                      <StatusBadge status={report.status} />
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                        {updatingId === report.id ? (
+                          <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                        ) : (
+                          <>
+                            {report.status !== 'resolved' && (
+                              <button 
+                                onClick={() => handleStatusChange(report.id, 'resolved')}
+                                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-200"
+                                title="Mark Resolved"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button 
+                              className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
                             >
-                              <Play className="w-4 h-4" />
+                              <MoreVertical className="w-4 h-4" />
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleStatusChange(report.id, 'resolved')}
-                            disabled={updatingStatus === report.id}
-                            className="p-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg transition-colors disabled:opacity-50"
-                            title="Mark as Resolved"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(report.id, 'false_report')}
-                            disabled={updatingStatus === report.id}
-                            className="p-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors disabled:opacity-50"
-                            title="Mark as False Report"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {(report.status === 'resolved' || report.status === 'false_report') && (
-                        <span className="text-xs text-gray-500">Completed</span>
-                      )}
-                      {updatingStatus === report.id && (
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                      )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              
+              {/* Empty State */}
+              {!loading && processedReports.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-24 text-center">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-100">
+                      <Layers className="w-10 h-10 text-slate-300" />
                     </div>
+                    <h3 className="text-lg font-bold text-slate-900">No records found</h3>
+                    <p className="text-slate-500 text-sm mt-1 max-w-xs mx-auto">
+                        Your filters did not match any reports. Try adjusting the search or status filter.
+                    </p>
+                    <button 
+                      onClick={() => { setFilterStatus('all'); setSearchQuery(''); }}
+                      className="mt-6 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
+                    >
+                      Clear All Filters
+                    </button>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                  No reports found
-                </td>
-              </tr>
-            )}
-          </tbody>
+              )}
+            </tbody>
+          )}
         </table>
       </div>
 
-      {/* Pagination */}
-      <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div className="text-sm text-gray-600">
-          Showing {filteredReports.length} reports
+      {/* 3. Footer / Pagination (Glass) */}
+      <div className="px-6 py-4 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-500 z-10">
+        <div>
+           Showing <span className="font-bold text-slate-900">{processedReports.length}</span> results
+        </div>
+        <div className="flex gap-2">
+           <button disabled className="p-2 rounded-lg border border-slate-200 text-slate-300 cursor-not-allowed"><ChevronLeft className="w-4 h-4" /></button>
+           <button disabled className="p-2 rounded-lg border border-slate-200 text-slate-300 cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
         </div>
       </div>
 
-      {/* Image Expansion Modal */}
-      {expandedImage && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4"
-          onClick={() => setExpandedImage(null)}
-        >
-          <div className="relative max-w-5xl max-h-[90vh]">
-            <button
-              onClick={() => setExpandedImage(null)}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 flex items-center gap-2"
-            >
-              <X className="w-6 h-6" />
-              Close
-            </button>
-            <img
-              src={expandedImage}
-              alt="Expanded waste report"
-              className="max-w-full max-h-[90vh] object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
+      {/* 4. Floating Action Dock (macOS Style) */}
+      {selectedRows.size > 0 && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-6 duration-300 fade-in">
+          <div className="bg-slate-900 text-white pl-6 pr-2 py-2 rounded-2xl shadow-2xl flex items-center gap-6 border border-slate-700/50">
+            <div className="text-sm font-semibold whitespace-nowrap">
+              <span className="text-emerald-400 font-bold">{selectedRows.size}</span> Selected
+            </div>
+            
+            <div className="h-6 w-px bg-slate-700" />
+            
+            <div className="flex items-center gap-1">
+               <button className="flex items-center gap-2 px-3 py-2 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-400 rounded-xl transition-all text-xs font-semibold">
+                  <CheckCircle2 className="w-4 h-4" /> Resolve
+               </button>
+               <button className="flex items-center gap-2 px-3 py-2 hover:bg-red-500/20 text-slate-300 hover:text-red-400 rounded-xl transition-all text-xs font-semibold">
+                  <Trash2 className="w-4 h-4" /> Delete
+               </button>
+               <button className="flex items-center gap-2 px-3 py-2 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl transition-all text-xs font-semibold">
+                  <Download className="w-4 h-4" /> CSV
+               </button>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Lightbox Modal */}
+      {expandedImage && (
+        <div 
+          className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-200"
+          onClick={() => setExpandedImage(null)}
+        >
+          <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col items-center">
+            <img 
+              src={expandedImage} 
+              className="max-h-[85vh] w-auto rounded-lg shadow-2xl border border-white/10 object-contain" 
+              onClick={e => e.stopPropagation()} 
+              alt="Expanded Evidence"
+            />
+            <button 
+              className="mt-6 px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-white font-medium backdrop-blur-sm transition-all flex items-center gap-2"
+              onClick={() => setExpandedImage(null)}
+            >
+              <X className="w-4 h-4" /> Close Viewer
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
