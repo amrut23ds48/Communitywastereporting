@@ -4,12 +4,13 @@ import {
   ChevronDown, AlertTriangle, Clock, 
   CheckCircle2, ArrowUpDown, MoreHorizontal, Trash2, 
   Filter, RefreshCw, ZoomIn, Loader2,
-  ListFilter, Archive, Ban
+  ListFilter, Archive, Ban, Flag, SlidersHorizontal, Layers
 } from 'lucide-react';
 import { getReports, subscribeToReports } from '../db/reports';
 import { updateReportStatus, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
 import type { Database } from '../utils/supabase/client';
 
+// Types
 type Report = Database['public']['Tables']['reports']['Row'];
 type ReportStatus = Report['status'];
 type SortConfig = { key: keyof Report | 'priority'; direction: 'asc' | 'desc' };
@@ -19,7 +20,6 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) setIsOpen(false);
@@ -29,10 +29,10 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
   }, []);
 
   const config = {
-    open: { label: 'Open', color: 'bg-rose-50 text-rose-600 border-rose-100', icon: AlertTriangle },
-    in_progress: { label: 'In Progress', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: Clock },
-    resolved: { label: 'Resolved', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: CheckCircle2 },
-    false_report: { label: 'False Flag', color: 'bg-slate-50 text-slate-500 border-slate-200', icon: Ban },
+    open: { label: 'Open', color: 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100', icon: AlertTriangle },
+    in_progress: { label: 'In Progress', color: 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100', icon: Clock },
+    resolved: { label: 'Resolved', color: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100', icon: CheckCircle2 },
+    false_report: { label: 'False Flag', color: 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100', icon: Ban },
   };
 
   const activeConfig = config[current as keyof typeof config] || config.open;
@@ -43,7 +43,7 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
       <button 
         onClick={() => !isLoading && setIsOpen(!isOpen)}
         disabled={isLoading}
-        className={`w-36 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 ${activeConfig.color} ${isOpen ? 'ring-2 ring-offset-1 ring-slate-200' : 'hover:brightness-95'}`}
+        className={`w-36 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 ${activeConfig.color} ${isOpen ? 'ring-2 ring-offset-1 ring-slate-200' : ''}`}
       >
         <div className="flex items-center gap-2">
           {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icon className="w-3.5 h-3.5" />}
@@ -52,10 +52,9 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
         <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown Menu */}
       {isOpen && (
         <div className="absolute top-full left-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-1">
+          <div className="p-1 space-y-0.5">
             {Object.entries(config).map(([key, value]) => {
               const ItemIcon = value.icon;
               return (
@@ -83,15 +82,17 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
 const PriorityBadge = ({ dateStr }: { dateStr: string }) => {
   const getPriority = (date: string) => {
     const hours = (new Date().getTime() - new Date(date).getTime()) / (1000 * 60 * 60);
-    if (hours > 48) return { label: 'Critical', style: 'bg-rose-100 text-rose-700 animate-pulse' };
-    if (hours > 24) return { label: 'High', style: 'bg-orange-100 text-orange-700' };
-    return { label: 'Normal', style: 'bg-slate-100 text-slate-600' };
+    if (hours > 48) return { label: 'Critical', style: 'bg-rose-100 text-rose-700 ring-1 ring-rose-200 animate-pulse', icon: AlertTriangle };
+    if (hours > 24) return { label: 'High', style: 'bg-orange-100 text-orange-700 ring-1 ring-orange-200', icon: Clock };
+    return { label: 'Normal', style: 'bg-slate-100 text-slate-600 ring-1 ring-slate-200', icon: CheckCircle2 };
   };
 
   const p = getPriority(dateStr);
+  const Icon = p.icon;
 
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${p.style}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${p.style}`}>
+      <Icon className="w-3 h-3" />
       {p.label}
     </span>
   );
@@ -109,11 +110,21 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
   const [loading, setLoading] = useState(true);
   const [adminId, setAdminId] = useState<string | null>(null);
   
+  // Advanced Filter States
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedZone, setSelectedZone] = useState('all');
+  const [selectedDistrict, setSelectedDistrict] = useState('all');
+  const [dateRange, setDateRange] = useState('all'); // all, today, week, month
+
   // UI States
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'created_at', direction: 'desc' });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Mock Zones/Districts (Replace with actual data)
+  const zones = ['North Zone', 'South Zone', 'East Zone', 'West Zone', 'Central'];
+  const districts = ['District 1', 'District 2', 'District 3', 'District 4'];
 
   // --- Initialization ---
   useEffect(() => {
@@ -189,7 +200,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
   const processedReports = useMemo(() => {
     let data = [...reports];
 
-    // Filter
+    // Search Filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(r => 
@@ -197,6 +208,26 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
         r.city?.toLowerCase().includes(q) || 
         r.description?.toLowerCase().includes(q)
       );
+    }
+
+    // Advanced Filters (Mock implementation for Zone/District as data might not have it yet)
+    if (selectedZone !== 'all') {
+       // Filter logic here...
+    }
+    if (selectedDistrict !== 'all') {
+       // Filter logic here...
+    }
+    
+    // Date Filter
+    if (dateRange !== 'all') {
+      const now = new Date();
+      const today = new Date(now.setHours(0,0,0,0));
+      data = data.filter(r => {
+        const d = new Date(r.created_at);
+        if (dateRange === 'today') return d >= today;
+        // Add week/month logic...
+        return true;
+      });
     }
 
     // Sort
@@ -210,65 +241,148 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
           ? getAge(a.created_at) - getAge(b.created_at)
           : getAge(b.created_at) - getAge(a.created_at);
       }
-      return 0; 
+      
+      // Default String/Date sort
+      // if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      // if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
     });
 
     return data;
-  }, [reports, searchQuery, sortConfig]);
+  }, [reports, searchQuery, sortConfig, selectedZone, selectedDistrict, dateRange]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] min-h-[600px] relative bg-white">
       
       {/* 1. Command Toolbar */}
-      <div className="px-6 py-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 backdrop-blur-md z-20 sticky top-0">
+      <div className="px-6 py-4 border-b border-slate-100 bg-white/80 backdrop-blur-md z-20 sticky top-0 space-y-4">
         
-        {/* Left: Search */}
-        <div className="relative group w-full md:w-80">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search reports..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50/50 text-sm font-medium placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-          />
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-3">
-          <div className="hidden md:flex bg-slate-100/50 p-1 rounded-xl border border-slate-200">
-            {['all', 'open', 'resolved'].map((t) => (
-              <button
-                key={t}
-                onClick={() => { setFilterStatus(t); onFilterChange?.(t); }}
-                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all capitalize ${
-                  filterStatus === t 
-                    ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+        {/* Top Row: Search & Primary Actions */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Left: Search */}
+          <div className="relative group w-full md:w-96">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search by ID, location, or keyword..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl bg-slate-50/50 text-sm font-medium placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+            />
           </div>
 
-          <div className="h-6 w-px bg-slate-200 hidden md:block" />
+          {/* Right: Tools */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-2.5 border text-xs font-bold rounded-xl transition-all ${
+                showFilters 
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Filters</span>
+              {(selectedZone !== 'all' || selectedDistrict !== 'all' || dateRange !== 'all') && (
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+              )}
+            </button>
 
-          <button 
-            onClick={() => fetchReports()} 
-            className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100"
-            title="Refresh Data"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-95">
-             <Download className="w-3.5 h-3.5" />
-             <span className="hidden sm:inline">Export CSV</span>
-          </button>
+            <div className="h-6 w-px bg-slate-200 hidden md:block mx-1" />
+
+            <button 
+              onClick={() => fetchReports()} 
+              className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            
+            <button className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-95">
+               <Download className="w-3.5 h-3.5" />
+               <span className="hidden sm:inline">Export</span>
+            </button>
+          </div>
         </div>
+
+        {/* Filter Panel (Collapsible) */}
+        {showFilters && (
+          <div className="animate-in slide-in-from-top-2 duration-200">
+             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                
+                {/* Zone Filter */}
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Zone</label>
+                   <div className="relative">
+                      <select 
+                        value={selectedZone}
+                        onChange={(e) => setSelectedZone(e.target.value)}
+                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                         <option value="all">All Zones</option>
+                         {zones.map(z => <option key={z} value={z}>{z}</option>)}
+                      </select>
+                      <Layers className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                   </div>
+                </div>
+
+                {/* District Filter */}
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">District</label>
+                   <div className="relative">
+                      <select 
+                        value={selectedDistrict}
+                        onChange={(e) => setSelectedDistrict(e.target.value)}
+                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                         <option value="all">All Districts</option>
+                         {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <MapPin className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                   </div>
+                </div>
+
+                {/* Status Filter */}
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</label>
+                   <div className="relative">
+                      <select 
+                        value={filterStatus}
+                        onChange={(e) => { setFilterStatus(e.target.value); onFilterChange?.(e.target.value); }}
+                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                         <option value="all">All Statuses</option>
+                         <option value="open">Open Issues</option>
+                         <option value="in_progress">In Progress</option>
+                         <option value="resolved">Resolved</option>
+                         <option value="false_report">False Flag</option>
+                      </select>
+                      <Filter className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                   </div>
+                </div>
+
+                {/* Date Range */}
+                <div className="space-y-1.5">
+                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Timeframe</label>
+                   <div className="relative">
+                      <select 
+                        value={dateRange}
+                        onChange={(e) => setDateRange(e.target.value)}
+                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                         <option value="all">All Time</option>
+                         <option value="today">Today</option>
+                         <option value="week">This Week</option>
+                         <option value="month">This Month</option>
+                      </select>
+                      <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
       </div>
 
       {/* 2. Data Grid */}
@@ -297,7 +411,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                 <div className="flex items-center gap-1">Priority <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
               </th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status & Action</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right"></th>
+              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Options</th>
             </tr>
           </thead>
 
@@ -327,10 +441,10 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                       We couldn't find any reports matching your current filters.
                     </p>
                     <button 
-                      onClick={() => { setFilterStatus('all'); setSearchQuery(''); }}
+                      onClick={() => { setFilterStatus('all'); setSearchQuery(''); setDateRange('all'); setSelectedZone('all'); }}
                       className="mt-6 px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
                     >
-                      Clear Filters
+                      Clear All Filters
                     </button>
                   </div>
                 </td>
@@ -385,7 +499,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                     {/* Details */}
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                        <span className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1 cursor-pointer">
                           {report.street_name || 'Unknown Street'}
                         </span>
                         <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 font-medium">
@@ -418,9 +532,11 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
                     {/* Context Menu */}
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
+                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Details">
+                             <MoreHorizontal className="w-4 h-4" />
+                          </button>
+                       </div>
                     </td>
                   </tr>
                 );
@@ -442,14 +558,17 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
           <div className="h-6 w-px bg-slate-700 mx-1" />
           
           <div className="flex items-center gap-1">
-             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-emerald-400 tooltip-trigger" title="Resolve Selected">
+             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-emerald-400 tooltip-trigger group relative" title="Resolve Selected">
                <CheckCircle2 className="w-5 h-5" />
+               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Mark Resolved</span>
              </button>
-             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-white" title="Archive">
+             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-white group relative" title="Archive">
                <Archive className="w-5 h-5" />
+               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">Archive</span>
              </button>
-             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-rose-400" title="Delete">
+             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-rose-400 group relative" title="Delete">
                <Trash2 className="w-5 h-5" />
+               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">Delete</span>
              </button>
           </div>
         </div>
