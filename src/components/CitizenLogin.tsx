@@ -54,34 +54,37 @@ export function CitizenLogin({ onLogin, onBack }: CitizenLoginProps) {
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+  
     try {
-      if (!email || !password) throw new Error('Please fill in all fields.');
-      if (isSignUp && !fullName) throw new Error('Please enter your name.');
-
-      let result;
+      if (!email || !password) throw new Error('Please fill in all fields.')
+      if (isSignUp && !fullName) throw new Error('Please enter your name.')
+  
+      let result
+  
       if (isSignUp) {
-        result = await signUpCitizen(email, password, fullName);
+        result = await signUpCitizen(email, password, fullName)
       } else {
-        result = await signInCitizen(email, password);
+        result = await signInCitizen(email, password)
       }
-
-      if (result.error) throw new Error(result.error.message);
+  
+      if (result.error) throw new Error(result.error.message)
+  
       if (result.user) {
-        onLogin(result.user.id);
+        onLogin(result.user.id)   // 🚀 citizen logged in
       } else if (isSignUp) {
-         setError("Please check your email to confirm account.");
+        setError('Please check your email to confirm your account.')
       }
-      
+  
     } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
+      setError(err.message || 'Authentication failed.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
 
   const handleDemoLogin = () => {
     setEmail('citizen@demo.com');
