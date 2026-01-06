@@ -18,6 +18,7 @@ type Notification = Database['public']['Tables']['notifications']['Row'];
 
 interface AdminDashboardProps {
   onLogout: () => void;
+  userId: string;
 }
 
 type Tab = 'dashboard' | 'reports' | 'map' | 'fleet' | 'settings';
@@ -116,7 +117,7 @@ const WasteBreakdownWidget = () => (
 
 // --- MAIN DASHBOARD COMPONENT ---
 
-export function AdminDashboard({ onLogout }: AdminDashboardProps) {
+export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [showNotifications, setShowNotifications] = useState(false);
   const [reportFilter, setReportFilter] = useState<string>('all');

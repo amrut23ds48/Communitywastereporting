@@ -13,12 +13,13 @@ import { NewsView } from './dashboard-views/NewsView';
 import { WasteMap } from './WasteMap';
 
 interface CitizenDashboardProps {
-  onBack: () => void;
+  onLogout: () => void;
+  userId: string;
 }
 
 type ViewState = 'overview' | 'report' | 'map' | 'leaderboard' | 'history' | 'news';
 
-export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
+export function CitizenDashboard({ onLogout, userId }: CitizenDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewState>('overview');
   const [userProfile] = useState({
     name: "Rahul Sharma",
@@ -110,7 +111,7 @@ export function CitizenDashboard({ onBack }: CitizenDashboardProps) {
           </div>
 
           <button
-            onClick={onBack}
+            onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 mt-4 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors text-sm font-bold"
           >
             <LogOut className="w-4 h-4" />
