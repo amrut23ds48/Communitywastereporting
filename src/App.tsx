@@ -21,12 +21,12 @@ export default function App() {
           }
         }} />;
       case 'admin-login':
-        return <AdminLogin 
+        return <AdminLogin
           onLogin={(userId) => {
             setAdminUserId(userId);
             setCurrentScreen('admin-dashboard');
-          }} 
-          onBack={() => setCurrentScreen('role-selection')} 
+          }}
+          onBack={() => setCurrentScreen('role-selection')}
         />;
       case 'citizen-dashboard':
         return <CitizenDashboard onBack={() => setCurrentScreen('role-selection')} />;
@@ -41,7 +41,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       {renderScreen()}
     </div>
   );

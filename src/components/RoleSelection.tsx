@@ -119,7 +119,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
         <div className="absolute bottom-[-10%] left-[20%] w-[60%] h-[50%] rounded-full bg-emerald-200/30 blur-[120px] animate-pulse delay-1000"></div>
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-8 lg:py-10 max-w-7xl">
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 py-8 lg:py-10">
         
         {/* 🇮🇳 Top Bar: Live Activity Ticker */}
         <div className="flex justify-center mb-12">
