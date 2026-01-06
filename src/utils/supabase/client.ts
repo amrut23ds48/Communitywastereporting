@@ -320,6 +320,44 @@ class SupabaseClient {
         }
       },
 
+      signUp: async ({ email, password, options }: { email: string; password: string; options?: any }) => {
+        try {
+          const response = await fetch(`${this.url}/auth/v1/signup`, {
+            method: 'POST',
+            headers: {
+              'apikey': this.key,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email,
+              password,
+              data: options?.data ?? {}
+            }),
+          });
+      
+          if (!response.ok) {
+            const error = await response.json();
+            return { data: null, error: new Error(error.error_description || error.message || 'Signup failed') };
+          }
+      
+          const data = await response.json();
+      
+          // Save session if auto confirmed
+          if (data?.access_token) {
+            this.accessToken = data.access_token;
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('sb-access-token', this.accessToken!);
+            }
+            this.notifyListeners('SIGNED_IN', { user: data.user, access_token: data.access_token });
+          }
+      
+          return { data, error: null };
+        } catch (error) {
+          return { data: null, error: error as Error };
+        }
+     },      
+
+
       signOut: async () => {
         this.accessToken = null;
         if (typeof window !== 'undefined') {
