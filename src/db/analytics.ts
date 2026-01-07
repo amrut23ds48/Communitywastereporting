@@ -1,5 +1,6 @@
 import { createClient } from '../utils/supabase/client';
 import type { Database } from '../utils/supabase/client';
+import { getDistrictsForZone } from '../utils/cityZones';
 
 type Report = Database['public']['Tables']['reports']['Row'];
 
@@ -33,17 +34,55 @@ export interface MonthlyInsight {
   falseReports: number;
 }
 
+export interface WasteCompositionSlice {
+  name: string;
+  value: number;
+}
+
+export interface StatusDistributionSlice {
+  name: string;
+  value: number;
+}
+
 /**
  * Get analytics overview for dashboard cards
  */
-export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview | null; error: Error | null }> {
+export async function getAnalyticsOverview(filters?: { zone?: string; district?: string }): Promise<{ data: AnalyticsOverview | null; error: Error | null }> {
   const supabase = createClient();
 
   try {
-    // Get all reports
-    const { data: allReports, error: allError } = await supabase
-      .from('reports')
-      .select('status, created_at');
+    // Determine filtering logic
+    let filterCities: string[] = [];
+    if (filters?.district && filters.district !== 'all') {
+      filterCities = [filters.district]; // Assuming district matches city or strict filter
+    } else if (filters?.zone && filters.zone !== 'all') {
+      filterCities = getDistrictsForZone(filters.zone);
+    }
+
+    // Helper to apply filters
+    const applyFilters = (query: any) => {
+      // If we have a specific city/district
+      if (filters?.district && filters.district !== 'all') {
+        query = query.ilike('city', `%${filters.district}%`);
+      }
+      // If we have a zone (distinct list of cities)
+      else if (filters?.zone && filters.zone !== 'all') {
+        // Option A: If we have a zone column in DB (best): query.eq('zone', filters.zone)
+        // Option B: Filter by list of cities known in that zone
+        if (filterCities.length > 0) {
+          query = query.in('city', filterCities); // This requires cities to exactly match.
+          // fallback: OR we can filter in memory if the list is huge or inexact. 
+          // For now, let's assume 'city' column holds values like 'Pune', 'Mumbai', etc. matched by our utils.
+        }
+      }
+      return query;
+    };
+
+    // Get all reports (filtered)
+    let query = supabase.from('reports').select('status, created_at, city');
+    query = applyFilters(query);
+
+    const { data: allReports, error: allError } = await query;
 
     if (allError) throw allError;
     if (!allReports) return { data: null, error: null };
@@ -53,10 +92,13 @@ export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview 
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { data: thisMonthReports, error: monthError } = await supabase
+    let monthQuery = supabase
       .from('reports')
-      .select('id')
+      .select('id, city')
       .gte('created_at', startOfMonth.toISOString());
+    monthQuery = applyFilters(monthQuery);
+
+    const { data: thisMonthReports, error: monthError } = await monthQuery;
 
     if (monthError) throw monthError;
 
@@ -64,11 +106,14 @@ export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview 
     const startOfLastMonth = new Date(startOfMonth);
     startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
 
-    const { data: lastMonthReports, error: lastMonthError } = await supabase
+    let lastMonthQuery = supabase
       .from('reports')
-      .select('id')
+      .select('id, city')
       .gte('created_at', startOfLastMonth.toISOString())
       .lt('created_at', startOfMonth.toISOString());
+    lastMonthQuery = applyFilters(lastMonthQuery);
+
+    const { data: lastMonthReports, error: lastMonthError } = await lastMonthQuery;
 
     if (lastMonthError) throw lastMonthError;
 
@@ -81,10 +126,10 @@ export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview 
 
     const overview: AnalyticsOverview = {
       totalReports: allReports.length,
-      openReports: allReports.filter(r => r.status === 'open').length,
-      inProgressReports: allReports.filter(r => r.status === 'in_progress').length,
-      resolvedReports: allReports.filter(r => r.status === 'resolved').length,
-      falseReports: allReports.filter(r => r.status === 'false_report').length,
+      openReports: allReports.filter((r: any) => r.status === 'open').length,
+      inProgressReports: allReports.filter((r: any) => r.status === 'in_progress').length,
+      resolvedReports: allReports.filter((r: any) => r.status === 'resolved').length,
+      falseReports: allReports.filter((r: any) => r.status === 'false_report').length,
       thisMonthTotal,
       thisMonthChange,
     };
@@ -100,7 +145,8 @@ export async function getAnalyticsOverview(): Promise<{ data: AnalyticsOverview 
  * Get street-level statistics
  */
 export async function getStreetStatistics(
-  streetName?: string
+  streetName?: string,
+  filters?: { zone?: string; district?: string }
 ): Promise<{ data: StreetStatistics[] | null; error: Error | null }> {
   const supabase = createClient();
 
@@ -111,6 +157,13 @@ export async function getStreetStatistics(
 
     if (streetName) {
       query = query.eq('street_name', streetName);
+    }
+
+    if (filters?.district && filters.district !== 'all') {
+      query = query.ilike('city', `%${filters.district}%`);
+    } else if (filters?.zone && filters.zone !== 'all') {
+      const cities = getDistrictsForZone(filters.zone);
+      if (cities.length > 0) query = query.in('city', cities);
     }
 
     const { data: reports, error } = await query;
@@ -129,7 +182,7 @@ export async function getStreetStatistics(
       lastDate: string;
     }>();
 
-    reports.forEach(report => {
+    reports.forEach((report: any) => {
       const existing = streetMap.get(report.street_name);
 
       if (existing) {
@@ -176,7 +229,8 @@ export async function getStreetStatistics(
  * Get monthly insights for charts
  */
 export async function getMonthlyInsights(
-  months: number = 6
+  months: number = 6,
+  filters?: { zone?: string; district?: string }
 ): Promise<{ data: MonthlyInsight[] | null; error: Error | null }> {
   const supabase = createClient();
 
@@ -187,11 +241,20 @@ export async function getMonthlyInsights(
     startDate.setDate(1);
     startDate.setHours(0, 0, 0, 0);
 
-    const { data: reports, error } = await supabase
+    let query = supabase
       .from('reports')
-      .select('status, created_at')
+      .select('status, created_at, city')
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: true });
+
+    if (filters?.district && filters.district !== 'all') {
+      query = query.ilike('city', `%${filters.district}%`);
+    } else if (filters?.zone && filters.zone !== 'all') {
+      const cities = getDistrictsForZone(filters.zone);
+      if (cities.length > 0) query = query.in('city', cities);
+    }
+
+    const { data: reports, error } = await query;
 
     if (error) throw error;
     if (!reports) return { data: null, error: null };
@@ -205,7 +268,7 @@ export async function getMonthlyInsights(
       falseReports: number;
     }>();
 
-    reports.forEach(report => {
+    reports.forEach((report: any) => {
       const date = new Date(report.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
@@ -262,19 +325,90 @@ export async function getMonthlyInsights(
 }
 
 /**
+ * Get overall waste composition (by waste_type) and status distribution
+ */
+export async function getCompositionAndStatus(
+  startDate?: Date,
+  filters?: { zone?: string; district?: string }
+): Promise<{
+  composition: WasteCompositionSlice[] | null;
+  status: StatusDistributionSlice[] | null;
+  error: Error | null;
+}> {
+  const supabase = createClient();
+
+  try {
+    let query = supabase
+      .from('reports')
+      .select('waste_type, status');
+
+    if (startDate) {
+      query = query.gte('created_at', startDate.toISOString());
+    }
+
+    if (filters?.district && filters.district !== 'all') {
+      query = query.ilike('city', `%${filters.district}%`);
+    } else if (filters?.zone && filters.zone !== 'all') {
+      const cities = getDistrictsForZone(filters.zone);
+      if (cities.length > 0) query = query.in('city', cities);
+    }
+
+    const { data: reports, error } = await query;
+
+    if (error) throw error;
+    if (!reports) return { composition: null, status: null, error: null };
+
+    const compositionMap = new Map<string, number>();
+    const statusMap = new Map<string, number>();
+
+    reports.forEach((r: any) => {
+      const wt = (r.waste_type || 'general').toLowerCase();
+      compositionMap.set(wt, (compositionMap.get(wt) || 0) + 1);
+
+      const st = r.status || 'open';
+      statusMap.set(st, (statusMap.get(st) || 0) + 1);
+    });
+
+    const composition = Array.from(compositionMap.entries()).map(([name, value]) => ({
+      name,
+      value,
+    }));
+
+    const status = Array.from(statusMap.entries()).map(([name, value]) => ({
+      name,
+      value,
+    }));
+
+    return { composition, status, error: null };
+  } catch (error) {
+    console.error('Error fetching composition/status:', error);
+    return { composition: null, status: null, error: error as Error };
+  }
+}
+
+/**
  * Get heatmap data (reports grouped by location)
  */
-export async function getHeatmapData(): Promise<{
+export async function getHeatmapData(filters?: { zone?: string; district?: string }): Promise<{
   data: Array<{ lat: number; lng: number; intensity: number }> | null;
   error: Error | null
 }> {
   const supabase = createClient();
 
   try {
-    const { data: reports, error } = await supabase
+    let query = supabase
       .from('reports')
-      .select('latitude, longitude, status')
+      .select('latitude, longitude, status, city')
       .in('status', ['open', 'in_progress']);
+
+    if (filters?.district && filters.district !== 'all') {
+      query = query.ilike('city', `%${filters.district}%`);
+    } else if (filters?.zone && filters.zone !== 'all') {
+      const cities = getDistrictsForZone(filters.zone);
+      if (cities.length > 0) query = query.in('city', cities);
+    }
+
+    const { data: reports, error } = await query;
 
     if (error) throw error;
     if (!reports) return { data: null, error: null };
@@ -283,7 +417,7 @@ export async function getHeatmapData(): Promise<{
     const gridSize = 0.01; // ~1km
     const heatmap = new Map<string, { lat: number; lng: number; count: number }>();
 
-    reports.forEach(report => {
+    reports.forEach((report: any) => {
       const gridLat = Math.floor(report.latitude / gridSize) * gridSize;
       const gridLng = Math.floor(report.longitude / gridSize) * gridSize;
       const key = `${gridLat}-${gridLng}`;
@@ -325,7 +459,7 @@ export interface WeeklyStat {
 /**
  * Get weekly statistics for the current month
  */
-export async function getCurrentMonthWeeklyStats(): Promise<{ data: WeeklyStat[] | null; error: Error | null }> {
+export async function getCurrentMonthWeeklyStats(filters?: { zone?: string; district?: string }): Promise<{ data: WeeklyStat[] | null; error: Error | null }> {
   const supabase = createClient();
 
   try {
@@ -333,11 +467,20 @@ export async function getCurrentMonthWeeklyStats(): Promise<{ data: WeeklyStat[]
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const { data: reports, error } = await supabase
+    let query = supabase
       .from('reports')
-      .select('status, created_at')
+      .select('status, created_at, city')
       .gte('created_at', startOfMonth.toISOString())
       .order('created_at', { ascending: true });
+
+    if (filters?.district && filters.district !== 'all') {
+      query = query.ilike('city', `%${filters.district}%`);
+    } else if (filters?.zone && filters.zone !== 'all') {
+      const cities = getDistrictsForZone(filters.zone);
+      if (cities.length > 0) query = query.in('city', cities);
+    }
+
+    const { data: reports, error } = await query;
 
     if (error) throw error;
     if (!reports) return { data: [], error: null };
@@ -350,7 +493,7 @@ export async function getCurrentMonthWeeklyStats(): Promise<{ data: WeeklyStat[]
       resolved: 0,
     }));
 
-    reports.forEach(report => {
+    reports.forEach((report: any) => {
       const date = new Date(report.created_at);
       const dayOfMonth = date.getDate();
       // Simple week calculation: (day - 1) / 7

@@ -2,18 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { 
-  Loader2, Filter, Navigation, Calendar, Building, ChevronRight, Layers 
+import {
+  Loader2, Filter, Navigation, Calendar, Building, ChevronRight, Layers
 } from 'lucide-react';
 import { getReports } from '../db/reports';
 import type { Database } from '../utils/supabase/client';
+import { getDistrictsForZone } from '../utils/cityZones';
 
 type Report = Database['public']['Tables']['reports']['Row'];
 
 interface WasteMapProps {
   viewType: 'citizen' | 'admin';
   userLocation?: { latitude: number; longitude: number } | null;
-  cityFilter?: string;
+  cityFilter?: string; // Legacy support
+  zone?: string;
+  district?: string;
 }
 
 // Smooth map move
@@ -53,7 +56,7 @@ function LegendDot({ color, text }: { color: string; text: string }) {
   );
 }
 
-export function WasteMap({ viewType, userLocation, cityFilter }: WasteMapProps) {
+export function WasteMap({ viewType, userLocation, cityFilter, zone, district }: WasteMapProps) {
 
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,8 +67,8 @@ export function WasteMap({ viewType, userLocation, cityFilter }: WasteMapProps) 
 
   // When user location available
   useEffect(() => {
-    if (userLocation 
-      && !isNaN(userLocation.latitude) 
+    if (userLocation
+      && !isNaN(userLocation.latitude)
       && !isNaN(userLocation.longitude)
     ) {
       setMapCenter([userLocation.latitude, userLocation.longitude]);
@@ -76,25 +79,37 @@ export function WasteMap({ viewType, userLocation, cityFilter }: WasteMapProps) 
   // Fetch reports
   useEffect(() => {
     fetchReports();
-  }, [viewType, cityFilter]);
+  }, [viewType, cityFilter, zone, district]);
 
   const fetchReports = async () => {
     setLoading(true);
     try {
+      // Determine City Filter
+      let targetCity = cityFilter;
+      if (district && district !== 'all') targetCity = district;
+
       const { data } = await getReports({
         status: viewType === 'admin' ? undefined : ['open', 'in_progress', 'resolved'],
-        city: cityFilter,
+        city: targetCity,
       });
 
       if (data) {
 
         // 🔥 Keep only valid coordinates
-        const validReports = data.filter(r =>
+        let validReports = data.filter(r =>
           typeof r.latitude === "number" &&
           typeof r.longitude === "number" &&
           !isNaN(r.latitude) &&
           !isNaN(r.longitude)
         );
+
+        // Client-side Zone Filter (if API didn't handle it)
+        if (zone && zone !== 'all' && (!district || district === 'all')) {
+          const allowedCities = getDistrictsForZone(zone).map(c => c.toLowerCase());
+          if (allowedCities.length > 0) {
+            validReports = validReports.filter(r => r.city && allowedCities.includes(r.city.toLowerCase()));
+          }
+        }
 
         setReports(validReports);
 
@@ -103,10 +118,10 @@ export function WasteMap({ viewType, userLocation, cityFilter }: WasteMapProps) 
           setMapCenter([validReports[0].latitude, validReports[0].longitude]);
         }
       }
-    } 
+    }
     catch (error) {
       console.error('Error:', error);
-    } 
+    }
     finally {
       setLoading(false);
     }
@@ -135,8 +150,8 @@ export function WasteMap({ viewType, userLocation, cityFilter }: WasteMapProps) 
 
   const getIcon = (status: string) =>
     status === "resolved" ? icons.resolved :
-    status === "in_progress" ? icons.in_progress :
-    icons.open;
+      status === "in_progress" ? icons.in_progress :
+        icons.open;
 
   const activeReportsCount =
     reports.filter(r => r.status === 'open' || r.status === 'in_progress').length;
@@ -162,13 +177,13 @@ export function WasteMap({ viewType, userLocation, cityFilter }: WasteMapProps) 
         <MapUpdater center={mapCenter} zoom={mapZoom} />
 
         {userLocation &&
-         !isNaN(userLocation.latitude) &&
-         !isNaN(userLocation.longitude) && (
-          <Marker
-            position={[userLocation.latitude, userLocation.longitude]}
-            icon={icons.user}
-          />
-        )}
+          !isNaN(userLocation.latitude) &&
+          !isNaN(userLocation.longitude) && (
+            <Marker
+              position={[userLocation.latitude, userLocation.longitude]}
+              icon={icons.user}
+            />
+          )}
 
         {/* 🔥 SAFE REPORT MARKERS */}
         {reports.map(r => (

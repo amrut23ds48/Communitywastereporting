@@ -12,6 +12,8 @@ import { MonthlyInsights } from './MonthlyInsights';
 import { StreetIndicators } from './StreetIndicators';
 import { signOutAdmin } from '../db/admin';
 import { getRecentNotifications, subscribeToNewReports } from '../db/notifications';
+import { getCompositionAndStatus, WasteCompositionSlice } from '../db/analytics';
+import { MAHARASHTRA_ZONES, getDistrictsForZone } from '../utils/cityZones';
 import type { Database } from '../utils/supabase/client';
 
 type Notification = Database['public']['Tables']['notifications']['Row'];
@@ -80,40 +82,114 @@ const FleetWidget = () => (
   </div>
 );
 
-const WasteBreakdownWidget = () => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-full">
-    <div className="flex items-center justify-between mb-6">
-      <h3 className="font-bold text-gray-900 flex items-center gap-2">
-        <Gauge className="w-5 h-5 text-purple-600" />
-        Waste Composition
-      </h3>
-      <select className="bg-gray-50 border border-gray-200 text-xs font-medium rounded-lg px-2 py-1 outline-none">
-        <option>This Week</option>
-        <option>This Month</option>
-      </select>
-    </div>
+const WasteBreakdownWidget = ({ zone, district }: { zone?: string; district?: string }) => {
+  const [data, setData] = useState<any[]>([]);
+  const [timeRange, setTimeRange] = useState<'week' | 'month'>('week');
+  const [loading, setLoading] = useState(true);
 
-    <div className="space-y-5">
-      {[
-        { label: 'Organic', pct: 45, color: 'bg-green-500', sub: 'Composting Units' },
-        { label: 'Plastic', pct: 30, color: 'bg-blue-500', sub: 'Recycling Center A' },
-        { label: 'Hazardous', pct: 15, color: 'bg-red-500', sub: 'Special Treatment' },
-        { label: 'E-Waste', pct: 10, color: 'bg-purple-500', sub: 'Recovery Facility' },
-      ].map((item) => (
-        <div key={item.label}>
-          <div className="flex justify-between text-xs mb-1.5">
-            <span className="font-bold text-gray-700">{item.label}</span>
-            <span className="text-gray-500">{item.pct}%</span>
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const now = new Date();
+      const startDate = new Date();
+
+      if (timeRange === 'week') {
+        startDate.setDate(now.getDate() - 7);
+      } else {
+        startDate.setMonth(now.getMonth() - 1);
+      }
+
+      const filters = { zone: zone === 'all' ? undefined : zone, district: district === 'all' ? undefined : district };
+      const { composition } = await getCompositionAndStatus(startDate, filters);
+
+      if (composition) {
+        // Calculate percentages
+        const total = composition.reduce((sum, item) => sum + item.value, 0);
+        const processed = composition
+          .map(item => ({
+            ...item,
+            pct: total > 0 ? Math.round((item.value / total) * 100) : 0,
+            // Map colors based on type
+            color: getWasteColor(item.name),
+            sub: getWasteDestination(item.name)
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 4); // Top 4
+
+        setData(processed);
+      }
+      setLoading(false);
+    };
+
+    fetchData();
+  }, [timeRange, zone, district]);
+
+  const getWasteColor = (type: string) => {
+    const map: any = {
+      organic: 'bg-green-500',
+      plastic: 'bg-blue-500',
+      hazardous: 'bg-red-500',
+      'e-waste': 'bg-purple-500',
+      debris: 'bg-orange-500',
+      general: 'bg-gray-500'
+    };
+    return map[type.toLowerCase()] || 'bg-gray-500';
+  };
+
+  const getWasteDestination = (type: string) => {
+    const map: any = {
+      organic: 'Composting Units',
+      plastic: 'Recycling Center',
+      hazardous: 'Special Treatment',
+      'e-waste': 'Recovery Facility',
+      debris: 'Landfill Site',
+      general: 'Main Dump Site'
+    };
+    return map[type.toLowerCase()] || 'Sorting Center';
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+          <Gauge className="w-5 h-5 text-purple-600" />
+          Waste Composition
+        </h3>
+        <select
+          value={timeRange}
+          onChange={(e) => setTimeRange(e.target.value as 'week' | 'month')}
+          className="bg-gray-50 border border-gray-200 text-xs font-medium rounded-lg px-2 py-1 outline-none cursor-pointer hover:bg-gray-100"
+        >
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+        </select>
+      </div>
+
+      <div className="space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="w-6 h-6 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
           </div>
-          <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
-            <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.pct}%` }}></div>
-          </div>
-          <p className="text-[10px] text-gray-400 mt-1 text-right">Dest: {item.sub}</p>
-        </div>
-      ))}
+        ) : data.length === 0 ? (
+          <div className="text-center text-gray-400 text-xs py-10">No recent data</div>
+        ) : (
+          data.map((item: any) => (
+            <div key={item.name}>
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="font-bold text-gray-700 capitalize truncate max-w-[120px]" title={item.name}>{item.name}</span>
+                <span className="text-gray-500 font-mono">{item.pct}%</span>
+              </div>
+              <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full ${item.color} rounded-full transition-all duration-500`} style={{ width: `${item.pct}%` }}></div>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1 text-right truncate pl-4" title={`Dest: ${item.sub}`}>Dest: {item.sub}</p>
+            </div>
+          ))
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- MAIN DASHBOARD COMPONENT ---
 
@@ -124,6 +200,23 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Global Filter State
+  const [globalZone, setGlobalZone] = useState('all');
+  const [globalDistrict, setGlobalDistrict] = useState('all');
+  const [districts, setDistricts] = useState<string[]>([]);
+
+  // Zones list
+  const zones = Object.values(MAHARASHTRA_ZONES);
+
+  useEffect(() => {
+    if (globalZone !== 'all') {
+      setDistricts(getDistrictsForZone(globalZone));
+    } else {
+      setDistricts([]);
+    }
+    setGlobalDistrict('all');
+  }, [globalZone]);
 
   useEffect(() => {
     fetchNotifications();
@@ -258,6 +351,46 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
             <span className="text-xs text-gray-400 border border-gray-200 rounded px-1.5 py-0.5">⌘K</span>
           </div>
 
+          {/* GLOBAL FILTER BAR */}
+          <div className="hidden md:flex items-center gap-3 mr-4">
+            {/* Zone Filter */}
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Fuel className="h-4 w-4 text-indigo-500" />
+              </div>
+              <select
+                value={globalZone}
+                onChange={(e) => setGlobalZone(e.target.value)}
+                className="pl-9 pr-8 py-2 bg-indigo-50 border border-indigo-100 text-indigo-700 text-sm font-bold rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none cursor-pointer hover:bg-indigo-100 transition-colors shadow-sm"
+              >
+                <option value="all">All Zones</option>
+                {zones.map(z => <option key={z} value={z}>{z}</option>)}
+              </select>
+              <ChevronRight className="absolute right-2 top-2.5 w-4 h-4 text-indigo-400 pointer-events-none rotate-90" />
+            </div>
+
+            {/* District Filter */}
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <MapIcon className="h-4 w-4 text-slate-500" />
+              </div>
+              <select
+                disabled={globalZone === 'all'}
+                value={globalDistrict}
+                onChange={(e) => setGlobalDistrict(e.target.value)}
+                className={`pl-9 pr-8 py-2 text-sm font-bold rounded-xl outline-none appearance-none border shadow-sm transition-all
+                    ${globalZone === 'all'
+                    ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-white border-slate-200 text-slate-700 cursor-pointer hover:border-slate-300 focus:ring-2 focus:ring-indigo-500/20'
+                  }`}
+              >
+                <option value="all">All Districts</option>
+                {districts.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <ChevronRight className={`absolute right-2 top-2.5 w-4 h-4 pointer-events-none rotate-90 ${globalZone === 'all' ? 'text-slate-300' : 'text-slate-500'}`} />
+            </div>
+          </div>
+
           <div className="flex items-center gap-3 md:gap-4 shrink-0">
             {/* Quick Action Button */}
             <button className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-500/20 transition-all active:scale-95">
@@ -286,7 +419,14 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
             {activeTab === 'dashboard' && (
               <div className="space-y-6">
                 {/* Top Level Metrics */}
-                <AnalyticsCards onCardClick={handleCardClick} refreshKey={refreshKey} />
+                <AnalyticsCards
+                  onCardClick={handleCardClick}
+                  refreshKey={refreshKey}
+                  filters={{
+                    zone: globalZone === 'all' ? undefined : globalZone,
+                    district: globalDistrict === 'all' ? undefined : globalDistrict,
+                  }}
+                />
 
                 {/* Main Grid: Map + Fleet + Indicators */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -305,7 +445,12 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
                         </div>
                       </div>
                       <div className="flex-1 rounded-xl overflow-hidden relative">
-                        <WasteMap viewType="admin" key={refreshKey} />
+                        <WasteMap
+                          viewType="admin"
+                          key={refreshKey}
+                          zone={globalZone}
+                          district={globalDistrict}
+                        />
 
                         {/* Floating Map Legend */}
                         <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur px-3 py-2 rounded-lg border border-gray-200 shadow-lg text-xs space-y-1">
@@ -317,7 +462,7 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
                     </div>
 
                     {/* Wide Bottom Widget */}
-                    <MonthlyInsights key={refreshKey} />
+                    <MonthlyInsights key={refreshKey} zone={globalZone} district={globalDistrict} />
                   </div>
 
                   {/* Right Column: Fleet & Composition */}
@@ -326,10 +471,10 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
                       <FleetWidget />
                     </div>
                     <div className="h-[300px]">
-                      <WasteBreakdownWidget />
+                      <WasteBreakdownWidget zone={globalZone} district={globalDistrict} />
                     </div>
                     <div>
-                      <StreetIndicators key={refreshKey} />
+                      <StreetIndicators key={refreshKey} zone={globalZone} district={globalDistrict} />
                     </div>
                   </div>
                 </div>
@@ -346,24 +491,27 @@ export function AdminDashboard({ onLogout, userId }: AdminDashboardProps) {
                     </h2>
                     <p className="text-sm text-gray-500 mt-1">Real-time feed of citizen reports.</p>
                   </div>
-                  <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
-                      <Filter className="w-4 h-4" /> Filter
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
-                      <Calendar className="w-4 h-4" /> Date
-                    </button>
-                  </div>
                 </div>
                 <div className="flex-1">
-                  <ReportsTable initialFilter={reportFilter} onFilterChange={setReportFilter} key={refreshKey} />
+                  <ReportsTable
+                    initialFilter={reportFilter}
+                    onFilterChange={setReportFilter}
+                    key={refreshKey}
+                    externalZone={globalZone === 'all' ? undefined : globalZone}
+                    externalDistrict={globalDistrict === 'all' ? undefined : globalDistrict}
+                  />
                 </div>
               </div>
             )}
 
             {activeTab === 'map' && (
               <div className="h-[80vh] rounded-3xl overflow-hidden border border-gray-200 shadow-xl bg-white relative">
-                <WasteMap viewType="admin" key={refreshKey} />
+                <WasteMap
+                  viewType="admin"
+                  key={refreshKey}
+                  zone={globalZone}
+                  district={globalDistrict}
+                />
                 <div className="absolute top-4 right-4 bg-white p-2 rounded-lg shadow-lg border border-gray-200 flex flex-col gap-2">
                   <button className="p-2 hover:bg-gray-100 rounded-md" title="Zoom In">+</button>
                   <button className="p-2 hover:bg-gray-100 rounded-md" title="Zoom Out">-</button>

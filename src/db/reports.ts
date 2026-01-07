@@ -271,13 +271,11 @@ export function subscribeToReports(
         event: '*',
         schema: 'public',
         table: 'reports',
-        filter: filters?.status ? `status=eq.${filters.status}` : undefined,
       },
       (payload) => {
         console.log('🔔 [db/reports] Realtime Update Received:', payload);
-        if (payload.new) {
-          callback(payload.new as Report);
-        }
+        const row = (payload.new || payload.old) as Report | null;
+        if (row) callback(row);
       }
     )
     .subscribe();

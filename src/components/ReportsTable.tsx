@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Check, X, Calendar, MapPin, Search, Download, 
-  ChevronDown, AlertTriangle, Clock, 
-  CheckCircle2, ArrowUpDown, MoreHorizontal, Trash2, 
+import {
+  Check, X, Calendar, MapPin, Search, Download,
+  ChevronDown, AlertTriangle, Clock,
+  CheckCircle2, ArrowUpDown, MoreHorizontal, Trash2,
   Filter, RefreshCw, ZoomIn, Loader2,
-  ListFilter, Archive, Ban, Flag, SlidersHorizontal, Layers
+  ListFilter, Ban, Flag, SlidersHorizontal, Layers
 } from 'lucide-react';
 import { getReports, subscribeToReports } from '../db/reports';
-import { updateReportStatus, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
+import { updateReportStatus, deleteReport, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
+import { MAHARASHTRA_ZONES, getZoneForCity, getDistrictsForZone } from '../utils/cityZones';
 import type { Database } from '../utils/supabase/client';
 
 // Types
@@ -40,7 +41,7 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
 
   return (
     <div className="relative" ref={ref}>
-      <button 
+      <button
         onClick={() => !isLoading && setIsOpen(!isOpen)}
         disabled={isLoading}
         className={`w-36 flex items-center justify-between px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 ${activeConfig.color} ${isOpen ? 'ring-2 ring-offset-1 ring-slate-200' : ''}`}
@@ -61,9 +62,8 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
                 <button
                   key={key}
                   onClick={() => { onChange(key as ReportStatus); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                    current === key ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${current === key ? 'bg-slate-50 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
                 >
                   <ItemIcon className={`w-4 h-4 ${key === 'resolved' ? 'text-emerald-500' : key === 'open' ? 'text-rose-500' : 'text-blue-500'}`} />
                   {value.label}
@@ -101,20 +101,24 @@ const PriorityBadge = ({ dateStr }: { dateStr: string }) => {
 interface ReportsTableProps {
   initialFilter?: string;
   onFilterChange?: (filter: string) => void;
+  externalZone?: string;
+  externalDistrict?: string;
 }
 
-export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsTableProps) {
+export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZone, externalDistrict }: ReportsTableProps) {
   const [reports, setReports] = useState<Report[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>(initialFilter);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [adminId, setAdminId] = useState<string | null>(null);
-  
+
   // Advanced Filter States
   const [showFilters, setShowFilters] = useState(false);
   const [selectedZone, setSelectedZone] = useState('all');
   const [selectedDistrict, setSelectedDistrict] = useState('all');
-  const [dateRange, setDateRange] = useState('all'); // all, today, week, month
+  const [dateRange, setDateRange] = useState('all'); // all, today, week, month, year
+  const [filterWasteType, setFilterWasteType] = useState('all');
+  const [filterUrgency, setFilterUrgency] = useState('all');
 
   // UI States
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
@@ -122,10 +126,33 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'created_at', direction: 'desc' });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [openDescriptionId, setOpenDescriptionId] = useState<string | null>(null);
+  const [bulkLoading, setBulkLoading] = useState<boolean>(false);
+  const [districts, setDistricts] = useState<string[]>([]);
 
-  // Mock Zones/Districts (Replace with actual data)
-  const zones = ['North Zone', 'South Zone', 'East Zone', 'West Zone', 'Central'];
-  const districts = ['District 1', 'District 2', 'District 3', 'District 4'];
+  // Zones from utils
+  const zones = Object.values(MAHARASHTRA_ZONES);
+
+  useEffect(() => {
+    if (selectedZone !== 'all') {
+      setDistricts(getDistrictsForZone(selectedZone));
+    } else {
+      setDistricts([]);
+    }
+    setSelectedDistrict('all');
+  }, [selectedZone]);
+
+  // Sync with External Filters
+  useEffect(() => {
+    if (externalZone !== undefined) {
+      setSelectedZone(externalZone);
+    }
+  }, [externalZone]);
+
+  useEffect(() => {
+    if (externalDistrict !== undefined) {
+      setSelectedDistrict(externalDistrict);
+    }
+  }, [externalDistrict]);
 
   // --- Initialization ---
   useEffect(() => {
@@ -139,16 +166,13 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
   }, []);
 
   useEffect(() => {
-    fetchReports();
-    const unsubscribe = subscribeToReports(
-      () => fetchReports(), 
-      filterStatus !== 'all' ? { status: filterStatus as ReportStatus } : undefined
-    );
+    fetchReports(true);
+    const unsubscribe = subscribeToReports(() => fetchReports(true));
     return () => unsubscribe();
   }, [filterStatus]);
 
-  const fetchReports = async () => {
-    if (reports.length === 0) setLoading(true);
+  const fetchReports = async (forceLoading: boolean = false) => {
+    if (forceLoading) setLoading(true);
     try {
       const { data } = await getReports({
         status: filterStatus === 'all' ? undefined : filterStatus as ReportStatus,
@@ -197,6 +221,48 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     setSelectedRows(newSet);
   };
 
+  const handleBulkResolve = async () => {
+    if (!adminId || selectedRows.size === 0) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedRows).map(id => updateReportStatus(id, 'resolved', adminId))
+      );
+      setReports(prev => prev.map(r => selectedRows.has(r.id) ? { ...r, status: 'resolved' } : r));
+      setSelectedRows(new Set());
+    } catch (error) {
+      console.error('Bulk resolve failed', error);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!adminId || selectedRows.size === 0) return;
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        Array.from(selectedRows).map(id => deleteReport(id, adminId))
+      );
+      setReports(prev => prev.filter(r => !selectedRows.has(r.id)));
+      setSelectedRows(new Set());
+    } catch (error) {
+      console.error('Bulk delete failed', error);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const wasteTypeEmoji = (type?: string) => {
+    const normalized = (type || 'general').toLowerCase();
+    if (normalized.includes('organic')) return '🌿';
+    if (normalized.includes('plastic')) return '🧴';
+    if (normalized.includes('hazard')) return '☣️';
+    if (normalized.includes('construction') || normalized.includes('debris')) return '🧱';
+    if (normalized.includes('e-waste') || normalized.includes('ewaste')) return '💻';
+    return '🗑️';
+  };
+
   // --- Data Processing ---
   const processedReports = useMemo(() => {
     let data = [...reports];
@@ -204,9 +270,9 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     // Search Filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      data = data.filter(r => 
-        r.street_name?.toLowerCase().includes(q) || 
-        r.city?.toLowerCase().includes(q) || 
+      data = data.filter(r =>
+        r.street_name?.toLowerCase().includes(q) ||
+        r.city?.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q) ||
         r.waste_type?.toLowerCase().includes(q) ||
         r.urgency?.toLowerCase().includes(q)
@@ -215,20 +281,36 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
     // Advanced Filters (Mock implementation for Zone/District as data might not have it yet)
     if (selectedZone !== 'all') {
-       // Filter logic here...
+      data = data.filter(r => getZoneForCity(r.city) === selectedZone);
     }
     if (selectedDistrict !== 'all') {
-       // Filter logic here...
+      data = data.filter(r => (r as any).district === selectedDistrict || r.city?.toLowerCase().includes(selectedDistrict.toLowerCase()));
     }
-    
+
+    // Waste Type Filter
+    if (filterWasteType !== 'all') {
+      data = data.filter(r => r.waste_type?.toLowerCase().includes(filterWasteType.toLowerCase()));
+    }
+
+    // Urgency Filter
+    if (filterUrgency !== 'all') {
+      data = data.filter(r => r.urgency === filterUrgency);
+    }
+
     // Date Filter
     if (dateRange !== 'all') {
       const now = new Date();
-      const today = new Date(now.setHours(0,0,0,0));
+      const today = new Date(now.setHours(0, 0, 0, 0));
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+
       data = data.filter(r => {
         const d = new Date(r.created_at);
         if (dateRange === 'today') return d >= today;
-        // Add week/month logic...
+        if (dateRange === 'week') return d >= oneWeekAgo;
+        if (dateRange === 'month') return d >= startOfMonth;
+        if (dateRange === 'year') return d >= startOfYear;
         return true;
       });
     }
@@ -251,14 +333,14 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     });
 
     return data;
-  }, [reports, searchQuery, sortConfig, selectedZone, selectedDistrict, dateRange]);
+  }, [reports, searchQuery, sortConfig, selectedZone, selectedDistrict, dateRange, filterWasteType, filterUrgency]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] min-h-[600px] relative bg-white">
-      
+
       {/* 1. Command Toolbar */}
       <div className="px-6 py-4 border-b border-slate-100 bg-white/80 backdrop-blur-md z-20 sticky top-0 space-y-4">
-        
+
         {/* Top Row: Search & Primary Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           {/* Left: Search */}
@@ -277,13 +359,12 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
           {/* Right: Tools */}
           <div className="flex items-center gap-2">
-            <button 
+            <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2.5 border text-xs font-bold rounded-xl transition-all ${
-                showFilters 
-                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2.5 border text-xs font-bold rounded-xl transition-all ${showFilters
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
               <span>Filters</span>
@@ -294,17 +375,17 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
             <div className="h-6 w-px bg-slate-200 hidden md:block mx-1" />
 
-            <button 
-              onClick={() => fetchReports()} 
+            <button
+              onClick={() => fetchReports(true)}
               className="p-2.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-transparent hover:border-indigo-100"
               title="Refresh Data"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            
+
             <button className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-95">
-               <Download className="w-3.5 h-3.5" />
-               <span className="hidden sm:inline">Export</span>
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Export</span>
             </button>
           </div>
         </div>
@@ -312,77 +393,118 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
         {/* Filter Panel (Collapsible) */}
         {showFilters && (
           <div className="animate-in slide-in-from-top-2 duration-200">
-             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
-                
-                {/* Zone Filter */}
-                <div className="space-y-1.5">
-                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Zone</label>
-                   <div className="relative">
-                      <select 
-                        value={selectedZone}
-                        onChange={(e) => setSelectedZone(e.target.value)}
-                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                         <option value="all">All Zones</option>
-                         {zones.map(z => <option key={z} value={z}>{z}</option>)}
-                      </select>
-                      <Layers className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                   </div>
-                </div>
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
 
-                {/* District Filter */}
-                <div className="space-y-1.5">
-                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">District</label>
-                   <div className="relative">
-                      <select 
-                        value={selectedDistrict}
-                        onChange={(e) => setSelectedDistrict(e.target.value)}
-                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                         <option value="all">All Districts</option>
-                         {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                      <MapPin className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                   </div>
+              {/* Zone Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Zone</label>
+                <div className="relative">
+                  <select
+                    value={selectedZone}
+                    onChange={(e) => setSelectedZone(e.target.value)}
+                    className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">All Zones</option>
+                    {zones.map(z => <option key={z} value={z}>{z}</option>)}
+                  </select>
+                  <Layers className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
+              </div>
 
-                {/* Status Filter */}
-                <div className="space-y-1.5">
-                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</label>
-                   <div className="relative">
-                      <select 
-                        value={filterStatus}
-                        onChange={(e) => { setFilterStatus(e.target.value); onFilterChange?.(e.target.value); }}
-                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                         <option value="all">All Statuses</option>
-                         <option value="open">Open Issues</option>
-                         <option value="in_progress">In Progress</option>
-                         <option value="resolved">Resolved</option>
-                         <option value="false_report">False Flag</option>
-                      </select>
-                      <Filter className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                   </div>
+              {/* District Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">District</label>
+                <div className="relative">
+                  <select
+                    disabled={selectedZone === 'all'}
+                    value={selectedDistrict}
+                    onChange={(e) => setSelectedDistrict(e.target.value)}
+                    className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="all">All Districts</option>
+                    {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <MapPin className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
+              </div>
 
-                {/* Date Range */}
-                <div className="space-y-1.5">
-                   <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Timeframe</label>
-                   <div className="relative">
-                      <select 
-                        value={dateRange}
-                        onChange={(e) => setDateRange(e.target.value)}
-                        className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                      >
-                         <option value="all">All Time</option>
-                         <option value="today">Today</option>
-                         <option value="week">This Week</option>
-                         <option value="month">This Month</option>
-                      </select>
-                      <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
-                   </div>
+              {/* Status Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</label>
+                <div className="relative">
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => { setFilterStatus(e.target.value); onFilterChange?.(e.target.value); }}
+                    className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="open">Open Issues</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="false_report">False Flag</option>
+                  </select>
+                  <Filter className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
-             </div>
+              </div>
+
+              {/* Waste Type Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Waste Type</label>
+                <div className="relative">
+                  <select
+                    value={filterWasteType}
+                    onChange={(e) => setFilterWasteType(e.target.value)}
+                    className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">Any Type</option>
+                    <option value="general">General</option>
+                    <option value="organic">Organic</option>
+                    <option value="plastic">Plastic</option>
+                    <option value="hazardous">Hazardous</option>
+                    <option value="construction">Debris/Construction</option>
+                    <option value="e-waste">E-Waste</option>
+                  </select>
+                  <Trash2 className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Urgency Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Urgency</label>
+                <div className="relative">
+                  <select
+                    value={filterUrgency}
+                    onChange={(e) => setFilterUrgency(e.target.value)}
+                    className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">Any Priority</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                  <AlertTriangle className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Timeframe Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Timeframe</label>
+                <div className="relative">
+                  <select
+                    value={dateRange}
+                    onChange={(e) => setDateRange(e.target.value)}
+                    className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                  </select>
+                  <Calendar className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -397,11 +519,11 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
             <tr>
               <th className="px-6 py-4 w-14">
                 <div className="flex items-center">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={selectedRows.size === processedReports.length && processedReports.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4" 
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
                   />
                 </div>
               </th>
@@ -446,7 +568,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                     <p className="text-sm text-slate-500 mt-1 max-w-xs mx-auto">
                       We couldn't find any reports matching your current filters.
                     </p>
-                    <button 
+                    <button
                       onClick={() => { setFilterStatus('all'); setSearchQuery(''); setDateRange('all'); setSelectedZone('all'); }}
                       className="mt-6 px-6 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
                     >
@@ -460,45 +582,44 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
               processedReports.map((report) => {
                 const isSelected = selectedRows.has(report.id);
                 return (
-                  <tr 
-                    key={report.id} 
-                    className={`group transition-all duration-200 ${
-                      isSelected ? 'bg-indigo-50/60' : 'bg-white hover:bg-slate-50'
-                    }`}
+                  <tr
+                    key={report.id}
+                    className={`group transition-all duration-200 ${isSelected ? 'bg-indigo-50/60' : 'bg-white hover:bg-slate-50'
+                      }`}
                   >
                     {/* Checkbox */}
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleRow(report.id)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4" 
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
                         />
                       </div>
                     </td>
-                    
+
                     {/* Image Thumbnail */}
                     <td className="px-6 py-4">
-                      <button 
+                      <button
                         onClick={() => setExpandedImage(report.image_url)}
                         className="relative w-16 h-12 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 group/img shadow-sm"
                       >
-                          {report.image_url ? (
-                             <img 
-                               src={report.image_url} 
-                               className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-110" 
-                               alt="Report" 
-                               onError={(e) => { (e.target as HTMLImageElement).src = ''; }}
-                             />
-                          ) : (
-                             <div className="w-full h-full flex items-center justify-center text-slate-400">
-                               <div className="w-2 h-2 bg-slate-300 rounded-full" />
-                             </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors flex items-center justify-center">
-                             <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover/img:opacity-100 drop-shadow-md transform scale-90 group-hover/img:scale-100 transition-all" />
+                        {report.image_url ? (
+                          <img
+                            src={report.image_url}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-110"
+                            alt="Report"
+                            onError={(e) => { (e.target as HTMLImageElement).src = ''; }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400">
+                            <div className="w-2 h-2 bg-slate-300 rounded-full" />
                           </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors flex items-center justify-center">
+                          <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover/img:opacity-100 drop-shadow-md transform scale-90 group-hover/img:scale-100 transition-all" />
+                        </div>
                       </button>
                     </td>
 
@@ -524,8 +645,9 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
                     {/* Waste Type */}
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
-                        {report.waste_type || 'general'}
+                      <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                        <span>{wasteTypeEmoji(report.waste_type)}</span>
+                        <span>{report.waste_type || 'general'}</span>
                       </span>
                     </td>
 
@@ -567,21 +689,20 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
                     {/* Urgency */}
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        report.urgency === 'high'
-                          ? 'bg-rose-100 text-rose-700 border-rose-200'
-                          : report.urgency === 'low'
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${report.urgency === 'high'
+                        ? 'bg-rose-100 text-rose-700 border-rose-200'
+                        : report.urgency === 'low'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           : 'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
+                        }`}>
                         {report.urgency || 'medium'}
                       </span>
                     </td>
 
                     {/* Status Select */}
                     <td className="px-6 py-4">
-                      <StatusSelect 
-                        current={report.status} 
+                      <StatusSelect
+                        current={report.status}
                         onChange={(s) => handleStatusChange(report.id, s)}
                         isLoading={updatingId === report.id}
                       />
@@ -589,11 +710,11 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
                     {/* Context Menu */}
                     <td className="px-6 py-4 text-right">
-                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Details">
-                             <MoreHorizontal className="w-4 h-4" />
-                          </button>
-                       </div>
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="View Details">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -604,46 +725,49 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
       </div>
 
       {/* 3. Floating Bulk Action Bar */}
-      <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform ${
-        selectedRows.size > 0 ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-20 opacity-0 scale-95 pointer-events-none'
-      }`}>
+      <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform ${selectedRows.size > 0 ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-20 opacity-0 scale-95 pointer-events-none'
+        }`}>
         <div className="flex items-center gap-3 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl shadow-indigo-500/20 ring-1 ring-white/10">
           <div className="bg-slate-800 px-3 py-1 rounded-lg text-xs font-bold text-indigo-300 border border-slate-700">
             {selectedRows.size} Selected
           </div>
-          
+
           <div className="h-6 w-px bg-slate-700 mx-1" />
-          
+
           <div className="flex items-center gap-1">
-             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-emerald-400 tooltip-trigger group relative" title="Resolve Selected">
-               <CheckCircle2 className="w-5 h-5" />
-               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Mark Resolved</span>
-             </button>
-             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-white group relative" title="Archive">
-               <Archive className="w-5 h-5" />
-               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">Archive</span>
-             </button>
-             <button className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-rose-400 group relative" title="Delete">
-               <Trash2 className="w-5 h-5" />
-               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">Delete</span>
-             </button>
+            <button
+              onClick={handleBulkResolve}
+              disabled={bulkLoading}
+              className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-emerald-400 tooltip-trigger group relative disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Resolve Selected">
+              <CheckCircle2 className="w-5 h-5" />
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">Mark Resolved</span>
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkLoading}
+              className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-300 hover:text-rose-400 group relative disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Delete">
+              <Trash2 className="w-5 h-5" />
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">Delete</span>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Lightbox Overlay */}
       {expandedImage && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => setExpandedImage(null)}
         >
           <div className="relative max-w-4xl w-full" onClick={e => e.stopPropagation()}>
-            <img 
-              src={expandedImage} 
-              className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/10" 
+            <img
+              src={expandedImage}
+              className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-2xl ring-1 ring-white/10"
               alt="Report Evidence"
             />
-            <button 
+            <button
               className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white transition-colors flex items-center gap-2 text-sm font-bold bg-white/10 hover:bg-white/20 rounded-full px-4 backdrop-blur-sm"
               onClick={() => setExpandedImage(null)}
             >

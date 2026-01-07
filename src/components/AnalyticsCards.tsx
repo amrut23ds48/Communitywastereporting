@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  FileText, AlertCircle, CheckCircle2, XCircle, 
-  ArrowUpRight, ArrowDownRight, Activity, 
-  MoreHorizontal 
+import {
+  FileText, AlertCircle, CheckCircle2, XCircle,
+  ArrowUpRight, ArrowDownRight, Activity,
+  MoreHorizontal
 } from 'lucide-react';
 import { getAnalyticsOverview } from '../db/analytics';
 
 // --- Types ---
 interface AnalyticsCardsProps {
-  onCardClick?: (filter: string) => void;
-  refreshKey?: number;
-  activeFilter?: string;
+  onCardClick: (filter: string) => void;
+  refreshKey: number;
+  filters?: {
+    zone?: string;
+    district?: string;
+  };
 }
 
 // --- Helper: Count Up Animation ---
@@ -62,16 +65,16 @@ const AreaChartBackground = ({ color, isActive }: { color: string, isActive: boo
 };
 
 // --- Sub-Component: Stat Card ---
-const StatCard = ({ 
-  title, 
-  value, 
-  label, 
-  icon: Icon, 
-  filter, 
-  theme, 
-  isActive, 
+const StatCard = ({
+  title,
+  value,
+  label,
+  icon: Icon,
+  filter,
+  theme,
+  isActive,
   onClick,
-  trend 
+  trend
 }: any) => {
   const animatedValue = useCountUp(value);
 
@@ -81,8 +84,8 @@ const StatCard = ({
       className={`
         relative w-full text-left rounded-2xl p-6 transition-all duration-300 ease-out group overflow-hidden
         bg-white border
-        ${isActive 
-          ? `ring-2 ring-offset-2 border-transparent ${theme.ring}` 
+        ${isActive
+          ? `ring-2 ring-offset-2 border-transparent ${theme.ring}`
           : 'border-slate-100 hover:border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1'
         }
       `}
@@ -114,8 +117,8 @@ const StatCard = ({
 
         {/* Footer Label */}
         <div className="mt-4 flex items-center gap-2">
-           <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
-           <span className="text-xs text-slate-400 font-medium">{label}</span>
+          <span className={`w-1.5 h-1.5 rounded-full ${theme.dot}`} />
+          <span className="text-xs text-slate-400 font-medium">{label}</span>
         </div>
       </div>
     </button>
@@ -123,7 +126,7 @@ const StatCard = ({
 };
 
 // --- Main Component ---
-export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'all' }: AnalyticsCardsProps) {
+export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'all', filters }: AnalyticsCardsProps) {
   const [stats, setStats] = useState({
     totalReports: 0, openReports: 0, resolvedReports: 0, falseReports: 0, thisMonthChange: 0,
   });
@@ -134,7 +137,7 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
     const fetchStats = async () => {
       setLoading(true);
       try {
-        const { data } = await getAnalyticsOverview();
+        const { data } = await getAnalyticsOverview(filters);
         if (data && isMounted) setStats(data);
       } catch (err) {
         console.error(err);
@@ -144,7 +147,7 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
     };
     fetchStats();
     return () => { isMounted = false; };
-  }, [refreshKey]);
+  }, [refreshKey, filters?.zone, filters?.district]);
 
   // Configuration for cards
   const cardConfig = useMemo(() => [
