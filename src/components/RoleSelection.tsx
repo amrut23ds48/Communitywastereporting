@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, Shield, ArrowRight, Check, MapPin, TrendingUp, 
+import {
+  Users, Shield, ArrowRight, Check, MapPin, TrendingUp,
   ShieldCheck, Leaf, Recycle, Award,
   Target, BarChart3, Heart, Sparkles, Star, Zap,
   Activity, Trophy, ChevronRight, Globe, IndianRupee
 } from 'lucide-react';
+import { WasteCompositionWidget } from './WasteCompositionWidget';
 
 interface RoleSelectionProps {
   onSelectRole: (role: 'citizen' | 'admin') => void;
@@ -13,7 +14,7 @@ interface RoleSelectionProps {
 export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   const [selectedRole, setSelectedRole] = useState<'citizen' | 'admin' | null>(null);
   const [recentActivity, setRecentActivity] = useState<string>('Loading live updates...');
-  
+
   // Simulated stats with animation
   const [stats, setStats] = useState({
     reportsResolved: 14205,
@@ -32,10 +33,10 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
       "♻️ 50kg of plastic recycled in Andheri West today",
       "🙏 Ananya M. donated 500 Karma Points to tree plantation"
     ];
-    
+
     let index = 0;
     setRecentActivity(activities[0]);
-    
+
     const ticker = setInterval(() => {
       index = (index + 1) % activities.length;
       setRecentActivity(activities[index]);
@@ -111,7 +112,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
   return (
     <div className="min-h-screen bg-[#F0F4F8] relative overflow-hidden font-sans selection:bg-orange-200 selection:text-orange-900">
-      
+
       {/* Dynamic Background Mesh (Tricolor hint - Saffron, White, Green hints) */}
       <div className="absolute inset-0 z-0 opacity-60">
         <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-orange-200/30 blur-[120px] animate-pulse"></div>
@@ -120,7 +121,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
       </div>
 
       <div className="relative z-10 w-full max-w-7xl mx-auto px-4 py-8 lg:py-10">
-        
+
         {/* 🇮🇳 Top Bar: Live Activity Ticker */}
         <div className="flex justify-center mb-12">
           <div className="bg-white/90 backdrop-blur-md shadow-lg shadow-slate-200/50 border border-white/60 rounded-full pl-2 pr-6 py-2 flex items-center gap-4 animate-fade-in-down max-w-2xl w-full">
@@ -147,14 +148,14 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
             </span>
           </h1>
           <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Join the <span className="font-bold text-slate-900">Swachh Bharat</span> digital revolution. 
+            Join the <span className="font-bold text-slate-900">Swachh Bharat</span> digital revolution.
             Report waste, coordinate cleanups, and track real-time impact in your city.
           </p>
         </div>
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-12 gap-8 items-start">
-          
+
           {/* Left Column: Stats & Impact (3 cols) */}
           <div className="lg:col-span-3 space-y-6 hidden lg:block">
             {/* National Impact Card */}
@@ -168,7 +169,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
                   <p className="text-xs text-slate-500">Live stats across India</p>
                 </div>
               </div>
-              
+
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-white/50 rounded-xl">
                   <span className="text-sm text-slate-600">Reports</span>
@@ -178,7 +179,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
                   <span className="text-sm text-slate-600">Volunteers</span>
                   <span className="font-bold text-slate-900">{stats.activeVolunteers.toLocaleString()}</span>
                 </div>
-                
+
                 <div className="mt-4 pt-4 border-t border-slate-200/50">
                   <div className="text-center">
                     <span className="text-4xl font-bold text-emerald-600 block mb-1">{stats.wasteCollected}kg</span>
@@ -191,27 +192,10 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
             </div>
 
             {/* Waste Composition */}
-            <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-3xl p-6 shadow-xl shadow-slate-200/50">
-              <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wide">Waste Analysis</h3>
-              <div className="space-y-5">
-                {wasteTypes.map((waste) => (
-                  <div key={waste.type}>
-                    <div className="flex justify-between items-end mb-2">
-                      <div>
-                        <span className="block font-bold text-slate-700 text-sm">{waste.type}</span>
-                        <span className="block text-[10px] text-slate-400">{waste.sub}</span>
-                      </div>
-                      <span className="font-bold text-slate-900">{waste.percentage}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-white rounded-full overflow-hidden shadow-inner">
-                      <div 
-                        className={`h-full ${waste.color} transition-all duration-1000 ease-out`}
-                        style={{ width: `${waste.percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="h-[340px]">
+              <WasteCompositionWidget
+                className="bg-white/60 backdrop-blur-xl border-white/60 rounded-3xl"
+              />
             </div>
           </div>
 
@@ -220,7 +204,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
             {roles.map((role) => {
               const Icon = role.icon;
               const isSelected = selectedRole === role.id;
-              
+
               return (
                 <button
                   key={role.id}
@@ -231,12 +215,12 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
                     relative z-10 overflow-hidden
                     h-full bg-white/80 backdrop-blur-xl rounded-[2rem] p-8 border-2 
                     transition-all duration-300 ease-out
-                    ${isSelected 
-                      ? `border-${role.color}-500 scale-[1.02] shadow-2xl` 
+                    ${isSelected
+                      ? `border-${role.color}-500 scale-[1.02] shadow-2xl`
                       : 'border-white/50 hover:border-slate-300 hover:bg-white/90 shadow-xl'
                     }
                   `}>
-                    
+
                     {/* Background Gradient Blob on Hover */}
                     <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${role.bgGradient} opacity-0 group-hover:opacity-10 rounded-full blur-3xl transition-opacity duration-500`}></div>
 
@@ -260,9 +244,9 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
                               {role.subtitle}
                             </p>
                           </div>
-                          {isSelected && <div className="animate-scale-in bg-green-500 text-white p-1 rounded-full"><Check className="w-5 h-5"/></div>}
+                          {isSelected && <div className="animate-scale-in bg-green-500 text-white p-1 rounded-full"><Check className="w-5 h-5" /></div>}
                         </div>
-                        
+
                         <p className="text-slate-600 text-base leading-relaxed mb-6">
                           {role.description}
                         </p>
@@ -297,7 +281,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
           {/* Right Column: Leaderboard (3 cols) */}
           <div className="lg:col-span-3 space-y-6">
-            
+
             {/* Top Eco-Warriors Widget */}
             <div className="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden">
               {/* Decorative elements */}
@@ -319,10 +303,10 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
                   <div key={index} className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group cursor-pointer">
                     <div className={`
                       w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg
-                      ${index === 0 ? 'bg-gradient-to-tr from-yellow-300 to-yellow-600 text-yellow-900' : 
+                      ${index === 0 ? 'bg-gradient-to-tr from-yellow-300 to-yellow-600 text-yellow-900' :
                         index === 1 ? 'bg-gradient-to-tr from-slate-300 to-slate-500 text-slate-900' :
-                        index === 2 ? 'bg-gradient-to-tr from-orange-300 to-orange-500 text-orange-900' :
-                        'bg-slate-700 text-slate-300'}
+                          index === 2 ? 'bg-gradient-to-tr from-orange-300 to-orange-500 text-orange-900' :
+                            'bg-slate-700 text-slate-300'}
                     `}>
                       {index + 1}
                     </div>

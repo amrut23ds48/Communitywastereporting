@@ -9,6 +9,8 @@ import {
 import { getReports, subscribeToReports } from '../db/reports';
 import { updateReportStatus, deleteReport, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
 import { MAHARASHTRA_ZONES, getZoneForCity, getDistrictsForZone } from '../utils/cityZones';
+import { exportToCSV, exportToPDF } from '../utils/exportUtils';
+import { ExportDialog } from './ExportDialog';
 import type { Database } from '../utils/supabase/client';
 
 // Types
@@ -119,6 +121,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
   const [dateRange, setDateRange] = useState('all'); // all, today, week, month, year
   const [filterWasteType, setFilterWasteType] = useState('all');
   const [filterUrgency, setFilterUrgency] = useState('all');
+  const [showExport, setShowExport] = useState(false);
 
   // UI States
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
@@ -264,6 +267,30 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
   };
 
   // --- Data Processing ---
+  const handleExport = (format: 'csv' | 'pdf') => {
+    const dataToExport = processedReports.map(r => ({
+      ID: r.id.substring(0, 8),
+      Date: new Date(r.created_at).toLocaleDateString(),
+      Location: r.street_name || 'Unknown',
+      City: r.city,
+      Status: r.status,
+      'Waste Type': r.waste_type || 'general',
+      Urgency: r.urgency || 'medium',
+      Description: r.description || ''
+    }));
+
+    if (format === 'csv') {
+      exportToCSV(dataToExport, 'waste_reports_export');
+    } else {
+      exportToPDF(
+        dataToExport,
+        ['ID', 'Date', 'Location', 'City', 'Status', 'Waste Type', 'Urgency', 'Description'],
+        'Waste Reports Export'
+      );
+    }
+    setShowExport(false);
+  };
+
   const processedReports = useMemo(() => {
     let data = [...reports];
 
@@ -383,7 +410,10 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
 
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-95">
+            <button
+              onClick={() => setShowExport(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-slate-200 active:scale-95"
+            >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Export</span>
             </button>
@@ -776,6 +806,14 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
           </div>
         </div>
       )}
+
+      {/* Export Dialog */}
+      <ExportDialog
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+        onExport={handleExport}
+        title="Export Reports"
+      />
     </div>
   );
 }
