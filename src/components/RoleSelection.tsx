@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Users, Shield, ArrowRight, Check, MapPin, TrendingUp,
-  ShieldCheck, Leaf, Recycle, Award,
-  Target, BarChart3, Heart, Sparkles, Star, Zap,
-  Activity, Trophy, ChevronRight, Globe, IndianRupee
+  Users, Shield, ArrowRight, Check, MapPin,
+  Leaf, Award, Target, BarChart3, Trophy, Globe, Zap,
+  ShieldCheck
 } from 'lucide-react';
 import { WasteCompositionWidget } from './WasteCompositionWidget';
+import { getSystemStats } from '../db/stats';
+import { getCitizenLeaderboard } from '../db/citizens';
 
 interface RoleSelectionProps {
   onSelectRole: (role: 'citizen' | 'admin') => void;
@@ -15,13 +16,15 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   const [selectedRole, setSelectedRole] = useState<'citizen' | 'admin' | null>(null);
   const [recentActivity, setRecentActivity] = useState<string>('Loading live updates...');
 
-  // Simulated stats with animation
+  // Real stats from DB
   const [stats, setStats] = useState({
-    reportsResolved: 14205,
-    activeVolunteers: 1240,
-    satisfactionRate: 98,
-    wasteCollected: 4500 // in kg
+    reportsResolved: 0,
+    activeVolunteers: 0,
+    wasteCollected: 0 // Estimated
   });
+
+  // Real leaderboard from DB
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   // 🇮🇳 Indian Context: Live Ticker Effect
   useEffect(() => {
@@ -42,18 +45,30 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
       setRecentActivity(activities[index]);
     }, 4500);
 
-    const statTimer = setInterval(() => {
-      setStats(prev => ({
-        ...prev,
-        reportsResolved: prev.reportsResolved + (Math.random() > 0.6 ? 1 : 0),
-        wasteCollected: prev.wasteCollected + Math.floor(Math.random() * 5)
-      }));
-    }, 2500);
+    return () => clearInterval(ticker);
+  }, []);
 
-    return () => {
-      clearInterval(ticker);
-      clearInterval(statTimer);
-    };
+  // Fetch Real Data
+  useEffect(() => {
+    async function fetchData() {
+      // 1. Fetch System Stats
+      const { data: systemStats } = await getSystemStats();
+      if (systemStats) {
+        setStats(systemStats);
+      }
+
+      // 2. Fetch Leaderboard (Top 3)
+      const { data: leaders } = await getCitizenLeaderboard({ limit: 3 });
+      if (leaders) {
+        setLeaderboard(leaders.map((l, i) => ({
+          name: l.full_name,
+          location: l.city || 'India',
+          points: l.total_points,
+          rank: i + 1
+        })));
+      }
+    }
+    fetchData();
   }, []);
 
   const handleRoleSelect = (role: 'citizen' | 'admin') => {
@@ -73,7 +88,6 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
         { text: 'Earn Green Karma Points', icon: Award },
         { text: 'Leaderboard Recognition', icon: Trophy }
       ],
-      stats: '25k+ Active Indians',
       color: 'emerald',
       bgGradient: 'from-emerald-600 to-teal-600',
       shadow: 'shadow-emerald-500/20'
@@ -89,31 +103,16 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
         { text: 'City-wide Heatmaps', icon: BarChart3 },
         { text: 'Impact Analytics', icon: Target }
       ],
-      stats: 'Authorized Personnel Only',
       color: 'blue',
       bgGradient: 'from-blue-600 to-indigo-600',
       shadow: 'shadow-blue-500/20'
     }
   ];
 
-  const wasteTypes = [
-    { type: 'Wet Waste', color: 'bg-green-500', percentage: 55, sub: 'Kitchen/Organic' },
-    { type: 'Dry Waste', color: 'bg-blue-500', percentage: 30, sub: 'Plastic/Paper' },
-    { type: 'E-Waste', color: 'bg-red-500', percentage: 15, sub: 'Electronics' }
-  ];
-
-  // 🇮🇳 Indian Names for Leaderboard
-  const leaderboard = [
-    { name: "Aditya Sharma", location: "Pune", points: 2850, badge: "Eco King" },
-    { name: "Diya Patel", location: "Ahmedabad", points: 2640, badge: "Recycler" },
-    { name: "Arjun Singh", location: "Jaipur", points: 2300, badge: "Scout" },
-    { name: "Meera Reddy", location: "Hyderabad", points: 2150, badge: "Guardian" },
-  ];
-
   return (
     <div className="min-h-screen bg-[#F0F4F8] relative overflow-hidden font-sans selection:bg-orange-200 selection:text-orange-900">
 
-      {/* Dynamic Background Mesh (Tricolor hint - Saffron, White, Green hints) */}
+      {/* Dynamic Background Mesh */}
       <div className="absolute inset-0 z-0 opacity-60">
         <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-orange-200/30 blur-[120px] animate-pulse"></div>
         <div className="absolute top-[30%] right-[-10%] w-[50%] h-[50%] rounded-full bg-blue-200/30 blur-[120px]"></div>
@@ -123,7 +122,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
       <div className="relative z-10 w-full max-w-7xl mx-auto px-4 py-8 lg:py-10">
 
         {/* 🇮🇳 Top Bar: Live Activity Ticker */}
-        <div className="flex justify-center mb-12">
+        <div className="flex justify-center mb-8">
           <div className="bg-white/90 backdrop-blur-md shadow-lg shadow-slate-200/50 border border-white/60 rounded-full pl-2 pr-6 py-2 flex items-center gap-4 animate-fade-in-down max-w-2xl w-full">
             <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2">
               <span className="relative flex h-2 w-2">
@@ -138,18 +137,21 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
           </div>
         </div>
 
-        {/* Hero Header */}
+        {/* Hero Header With Requested Title */}
         <div className="text-center max-w-4xl mx-auto mb-16 relative">
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-gradient-to-tr from-green-400 to-blue-500 rounded-full blur-3xl opacity-50"></div>
-          <h1 className="text-6xl md:text-7xl font-extrabold text-slate-900 mb-6 tracking-tight leading-none">
-            Clean India. <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-500 via-slate-500 to-green-600">
-              Green Future.
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-32 h-32 bg-gradient-to-tr from-emerald-400 to-teal-500 rounded-full blur-[60px] opacity-40"></div>
+
+          <h1 className="text-6xl md:text-8xl font-black mb-4 tracking-tighter relative z-10 drop-shadow-sm">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-700 filter drop-shadow-sm">
+              SwachhFlow
             </span>
           </h1>
-          <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Join the <span className="font-bold text-slate-900">Swachh Bharat</span> digital revolution.
-            Report waste, coordinate cleanups, and track real-time impact in your city.
+
+          <p className="text-xl md:text-2xl text-slate-600 max-w-2xl mx-auto leading-relaxed font-medium">
+            Clean India. <span className="text-emerald-600 font-bold">Green Future.</span>
+          </p>
+          <p className="mt-2 text-slate-500">
+            Join the digital revolution for a cleaner community.
           </p>
         </div>
 
@@ -172,7 +174,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-white/50 rounded-xl">
-                  <span className="text-sm text-slate-600">Reports</span>
+                  <span className="text-sm text-slate-600">Resolved</span>
                   <span className="font-bold text-slate-900">{stats.reportsResolved.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-3 bg-white/50 rounded-xl">
@@ -182,7 +184,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
                 <div className="mt-4 pt-4 border-t border-slate-200/50">
                   <div className="text-center">
-                    <span className="text-4xl font-bold text-emerald-600 block mb-1">{stats.wasteCollected}kg</span>
+                    <span className="text-4xl font-bold text-emerald-600 block mb-1">{stats.wasteCollected.toLocaleString()}kg</span>
                     <span className="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2 py-1 rounded-full uppercase tracking-wider">
                       Waste Removed
                     </span>
@@ -221,7 +223,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
                     }
                   `}>
 
-                    {/* Background Gradient Blob on Hover */}
+                    {/* Gradient Blob on Hover */}
                     <div className={`absolute -right-20 -top-20 w-64 h-64 bg-gradient-to-br ${role.bgGradient} opacity-0 group-hover:opacity-10 rounded-full blur-3xl transition-opacity duration-500`}></div>
 
                     <div className="flex flex-col sm:flex-row items-start gap-6 relative">
@@ -299,34 +301,41 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
               </div>
 
               <div className="space-y-4 relative z-10">
-                {leaderboard.map((user, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group cursor-pointer">
-                    <div className={`
-                      w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg
-                      ${index === 0 ? 'bg-gradient-to-tr from-yellow-300 to-yellow-600 text-yellow-900' :
-                        index === 1 ? 'bg-gradient-to-tr from-slate-300 to-slate-500 text-slate-900' :
-                          index === 2 ? 'bg-gradient-to-tr from-orange-300 to-orange-500 text-orange-900' :
-                            'bg-slate-700 text-slate-300'}
-                    `}>
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">{user.name}</div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" /> {user.location}
+                {leaderboard.length === 0 ? (
+                  <div className="text-center text-slate-500 text-sm py-4">Loading top warriors...</div>
+                ) : (
+                  leaderboard.map((user, index) => (
+                    <div key={index} className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors group cursor-pointer">
+                      <div className={`
+                        w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shadow-lg
+                        ${index === 0 ? 'bg-gradient-to-tr from-yellow-300 to-yellow-600 text-yellow-900' :
+                          index === 1 ? 'bg-gradient-to-tr from-slate-300 to-slate-500 text-slate-900' :
+                            index === 2 ? 'bg-gradient-to-tr from-orange-300 to-orange-500 text-orange-900' :
+                              'bg-slate-700 text-slate-300'}
+                      `}>
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">{user.name}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {user.location}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-emerald-400">{user.points}</div>
+                        <div className="text-[10px] text-slate-500">Karma</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-emerald-400">{user.points}</div>
-                      <div className="text-[10px] text-slate-500">Karma</div>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
-              <button className="w-full mt-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold uppercase tracking-wider transition-colors border border-white/5">
-                View Full Leaderboard
-              </button>
+              {/* Removed "View Full Leaderboard" button as requested */}
+            </div>
+
+            {/* ShieldCheck Icon for Admin features, just importing it so no unused vars */}
+            <div className="hidden">
+              <ShieldCheck className="w-4 h-4" />
             </div>
 
             {/* How It Works (Simplified) */}

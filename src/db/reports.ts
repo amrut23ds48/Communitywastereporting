@@ -7,16 +7,22 @@ type ReportStatus = Report['status'];
 
 /**
  * Create a new waste report (citizen)
+ * Automatically links report to authenticated citizen if logged in
  */
 export async function createReport(report: ReportInsert): Promise<{ data: Report | null; error: Error | null }> {
   console.log('📝 [db/reports] createReport: Initiating with data:', report);
   const supabase = createClient();
 
   try {
+    // Get current user session to link report to citizen
+    const { data: { session } } = await supabase.auth.getSession();
+    const citizenId = session?.user?.id || null;
+
     const { data, error } = await supabase
       .from('reports')
       .insert({
         ...report,
+        citizen_id: citizenId, // Link to authenticated citizen (or null for anonymous)
         status: 'open',
       })
       .select()

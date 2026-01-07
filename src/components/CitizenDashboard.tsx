@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Map as MapIcon, Camera, Trophy, History,
   LogOut, Bell, ChevronRight, Star, Leaf, User, MegaphoneIcon,
@@ -21,12 +21,73 @@ type ViewState = 'overview' | 'report' | 'map' | 'leaderboard' | 'history' | 'ne
 
 export function CitizenDashboard({ onLogout, userId }: CitizenDashboardProps) {
   const [currentView, setCurrentView] = useState<ViewState>('overview');
-  const [userProfile] = useState({
-    name: "Rahul Sharma",
-    rank: "Eco Warrior",
-    points: 1250,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rahul"
-  });
+  const [userProfile, setUserProfile] = useState<{
+    id: string;
+    name: string;
+    rank: string;
+    points: number;
+    avatar: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorFragment, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadProfile() {
+      try {
+        setLoading(true);
+        const { getCitizenProfile } = await import('../db/citizens');
+        const { data, error } = await getCitizenProfile(userId);
+
+        if (error) throw error;
+
+        if (mounted && data) {
+          setUserProfile({
+            id: data.id,
+            name: data.full_name,
+            rank: data.rank_title,
+            points: data.total_points,
+            avatar: data.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.full_name}`
+          });
+        }
+      } catch (err: any) {
+        console.error("Failed to load profile:", err);
+        if (mounted) setError("Failed to load profile");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    loadProfile();
+    return () => { mounted = false; };
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-500 font-medium">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (errorFragment || !userProfile) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h3 className="text-xl font-bold text-gray-900">Something went wrong</h3>
+          <p className="text-gray-500">{errorFragment || "Profile not found"}</p>
+          <button onClick={onLogout} className="text-emerald-600 font-bold hover:underline">
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const headlines = [
     "🚀 Cleanliness Drive at Juhu Beach this Sunday!",
@@ -200,7 +261,7 @@ export function CitizenDashboard({ onLogout, userId }: CitizenDashboardProps) {
             {currentView === 'overview' && <OverviewView onViewChange={setCurrentView} user={userProfile} />}
             {currentView === 'report' && <ReportWasteView onSuccess={() => setCurrentView('history')} />}
             {currentView === 'leaderboard' && <LeaderboardView />}
-            {currentView === 'history' && <HistoryView />}
+            {currentView === 'history' && <HistoryView userId={userId} />}
             {currentView === 'news' && <NewsView />}
           </div>
         </div>
