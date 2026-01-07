@@ -13,7 +13,7 @@ import type { Database } from '../utils/supabase/client';
 // Types
 type Report = Database['public']['Tables']['reports']['Row'];
 type ReportStatus = Report['status'];
-type SortConfig = { key: keyof Report | 'priority'; direction: 'asc' | 'desc' };
+type SortConfig = { key: keyof Report | 'urgency'; direction: 'asc' | 'desc' };
 
 // --- Sub-Component: Interactive Status Select ---
 const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus, onChange: (s: ReportStatus) => void, isLoading: boolean }) => {
@@ -121,6 +121,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'created_at', direction: 'desc' });
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [openDescriptionId, setOpenDescriptionId] = useState<string | null>(null);
 
   // Mock Zones/Districts (Replace with actual data)
   const zones = ['North Zone', 'South Zone', 'East Zone', 'West Zone', 'Central'];
@@ -174,7 +175,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
     }
   };
 
-  const toggleSort = (key: keyof Report | 'priority') => {
+  const toggleSort = (key: keyof Report | 'urgency') => {
     setSortConfig(current => ({
       key,
       direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
@@ -206,7 +207,9 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
       data = data.filter(r => 
         r.street_name?.toLowerCase().includes(q) || 
         r.city?.toLowerCase().includes(q) || 
-        r.description?.toLowerCase().includes(q)
+        r.description?.toLowerCase().includes(q) ||
+        r.waste_type?.toLowerCase().includes(q) ||
+        r.urgency?.toLowerCase().includes(q)
       );
     }
 
@@ -232,19 +235,18 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
 
     // Sort
     data.sort((a, b) => {
-      const aValue = a[sortConfig.key as keyof Report];
-      const bValue = b[sortConfig.key as keyof Report];
-      
-      if (sortConfig.key === 'priority') {
-        const getAge = (date: string) => new Date().getTime() - new Date(date).getTime();
-        return sortConfig.direction === 'asc' 
-          ? getAge(a.created_at) - getAge(b.created_at)
-          : getAge(b.created_at) - getAge(a.created_at);
+      if (sortConfig.key === 'urgency') {
+        const order = { high: 3, medium: 2, low: 1 } as const;
+        const aVal = order[(a.urgency as keyof typeof order) || 'medium'];
+        const bVal = order[(b.urgency as keyof typeof order) || 'medium'];
+        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
       }
-      
-      // Default String/Date sort
-      // if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-      // if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+
+      const aValue = `${a[sortConfig.key as keyof Report] ?? ''}`;
+      const bValue = `${b[sortConfig.key as keyof Report] ?? ''}`;
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
 
@@ -407,8 +409,10 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-indigo-600 group" onClick={() => toggleSort('street_name')}>
                 <div className="flex items-center gap-1">Location <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
               </th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-indigo-600 group" onClick={() => toggleSort('priority')}>
-                <div className="flex items-center gap-1">Priority <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
+              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Waste Type</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-indigo-600 group" onClick={() => toggleSort('urgency')}>
+                <div className="flex items-center gap-1">Urgency <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
               </th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status & Action</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Options</th>
@@ -423,6 +427,8 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                   <td className="p-6"><div className="h-4 w-4 bg-slate-100 rounded" /></td>
                   <td className="p-6"><div className="h-12 w-16 bg-slate-100 rounded-lg" /></td>
                   <td className="p-6"><div className="h-4 w-48 bg-slate-100 rounded mb-2" /><div className="h-3 w-24 bg-slate-50 rounded" /></td>
+                  <td className="p-6"><div className="h-5 w-20 bg-slate-100 rounded-md" /></td>
+                  <td className="p-6"><div className="h-5 w-32 bg-slate-100 rounded-md" /></td>
                   <td className="p-6"><div className="h-5 w-16 bg-slate-100 rounded-md" /></td>
                   <td className="p-6"><div className="h-8 w-32 bg-slate-100 rounded-lg" /></td>
                   <td className="p-6 text-right"><div className="h-8 w-8 bg-slate-100 rounded-full ml-auto" /></td>
@@ -431,7 +437,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
             ) : processedReports.length === 0 ? (
               // Empty State
               <tr>
-                <td colSpan={6}>
+                <td colSpan={8}>
                   <div className="flex flex-col items-center justify-center py-32 text-center">
                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100 shadow-sm">
                       <ListFilter className="w-10 h-10 text-slate-300" />
@@ -516,9 +522,60 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange }: ReportsT
                       </div>
                     </td>
 
-                    {/* Priority */}
+                    {/* Waste Type */}
                     <td className="px-6 py-4">
-                      <PriorityBadge dateStr={report.created_at} />
+                      <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                        {report.waste_type || 'general'}
+                      </span>
+                    </td>
+
+                    {/* Description */}
+                    <td className="px-6 py-4">
+                      <div className="relative max-w-xs">
+                        <button
+                          type="button"
+                          onClick={() => setOpenDescriptionId(report.id)}
+                          className="text-xs text-slate-600 text-left line-clamp-2 hover:text-indigo-600 hover:underline"
+                          title="Click to view full description"
+                        >
+                          {report.description && report.description.trim().length > 0
+                            ? report.description
+                            : 'No description provided'}
+                        </button>
+
+                        {openDescriptionId === report.id && (
+                          <div className="absolute z-30 mt-2 w-72 max-w-md bg-white border border-slate-200 rounded-xl shadow-xl p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="text-xs text-slate-700 whitespace-pre-wrap">
+                                {report.description && report.description.trim().length > 0
+                                  ? report.description
+                                  : 'No description provided'}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setOpenDescriptionId(null)}
+                                className="ml-2 text-slate-400 hover:text-slate-700"
+                                aria-label="Close description"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Urgency */}
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        report.urgency === 'high'
+                          ? 'bg-rose-100 text-rose-700 border-rose-200'
+                          : report.urgency === 'low'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {report.urgency || 'medium'}
+                      </span>
                     </td>
 
                     {/* Status Select */}

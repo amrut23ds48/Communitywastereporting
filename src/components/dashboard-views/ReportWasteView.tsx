@@ -68,15 +68,15 @@ export function ReportWasteView({ onSuccess }: { onSuccess: () => void }) {
         const { url } = await uploadReportImage(uploadedFile);
         if(!url) throw new Error("Upload failed");
         
-        const fullDescription = `[Type: ${category.toUpperCase()}] [Urgency: ${urgency.toUpperCase()}] ${description}`;
-
         await createReport({
             image_url: url,
             latitude: coordinates.latitude,
             longitude: coordinates.longitude,
             street_name: detectedStreet,
             city: detectedCity,
-            description: fullDescription,
+            waste_type: category,
+            urgency,
+            description: description && description.trim().length > 0 ? description : 'No description provided',
         });
         
         onSuccess();

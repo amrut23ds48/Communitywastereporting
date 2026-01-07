@@ -14,6 +14,8 @@ export type Database = {
           longitude: number;
           street_name: string;
           city: string;
+          waste_type: string;
+          urgency: 'low' | 'medium' | 'high';
           description: string;
           status: 'open' | 'in_progress' | 'resolved' | 'false_report';
           created_at: string;
@@ -27,6 +29,8 @@ export type Database = {
           longitude: number;
           street_name: string;
           city: string;
+          waste_type?: string;
+          urgency?: 'low' | 'medium' | 'high';
           description: string;
           status?: 'open' | 'in_progress' | 'resolved' | 'false_report';
           created_at?: string;
@@ -40,6 +44,8 @@ export type Database = {
           longitude?: number;
           street_name?: string;
           city?: string;
+          waste_type?: string;
+          urgency?: 'low' | 'medium' | 'high';
           description?: string;
           status?: 'open' | 'in_progress' | 'resolved' | 'false_report';
           created_at?: string;

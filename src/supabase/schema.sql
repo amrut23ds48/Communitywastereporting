@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS reports (
   longitude DOUBLE PRECISION NOT NULL,
   street_name TEXT NOT NULL,
   city TEXT NOT NULL,
+  waste_type TEXT NOT NULL DEFAULT 'general',
+  urgency TEXT NOT NULL DEFAULT 'medium',
   description TEXT,
   status report_status DEFAULT 'open' NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
