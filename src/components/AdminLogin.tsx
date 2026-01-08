@@ -325,7 +325,7 @@
                 disabled={loading}
                 className="text-xs font-mono text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded hover:bg-emerald-100 transition-colors"
               >
-                Auto-fill: admin@waste.com
+                Auto-fill: admin@waste.com/admin123
               </button>
             </div>
           </div>
