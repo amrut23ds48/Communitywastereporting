@@ -51,3 +51,23 @@ export async function getSystemStats(): Promise<{ data: SystemStats | null; erro
         return { data: null, error: error as Error };
     }
 }
+
+/**
+ * Fetch impact trends for charts
+ * Fetches recent incidents to calculate trends client-side
+ */
+export async function getImpactTrends() {
+    const supabase = createClient();
+    try {
+        // Fetch last 100 incidents for charting to keep it lightweight
+        const { data, error } = await supabase
+            .from('incidents')
+            .select('created_at, status, category')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        return { data, error };
+    } catch (err) {
+        return { data: null, error: err as Error };
+    }
+}

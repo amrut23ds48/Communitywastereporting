@@ -222,6 +222,13 @@ export function AgencyDashboard({ onLogout, userId }: AgencyDashboardProps) {
                             <Bell className="w-4 h-4 text-slate-600" />
                             <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full"></span>
                         </button>
+                        <button
+                            onClick={onLogout}
+                            className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors"
+                            title="Sign Out"
+                        >
+                            <LogOut className="w-4 h-4" />
+                        </button>
                     </div>
                 </header>
 

@@ -91,10 +91,10 @@ export function CommunityDashboard({ onLogout, userId }: CommunityDashboardProps
     }
 
     const headlines = [
-        "🚨 Emergency Alert: Flash flood warning for Lower Parel.",
-        "🚑 Medical Camp available at Andheri Sports Complex.",
-        "📢 Food distribution starting at 2 PM in Sector 4.",
-        "🌧️ Heavy rain expected: Stay indoors."
+        "🚨 Emergency Alert: Flash flood warning issued for Low-lying areas.",
+        "📢 Mock Drill: Scheduled for Jan 24th in Sector 5.",
+        "🚑 Medical Camp: Establishing at Central Park for affected zones.",
+        "⚠️ Weather Update: Heavy rainfall predicted for next 48 hours."
     ];
 
     // --- Components ---

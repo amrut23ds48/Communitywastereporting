@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { RoleSelection } from './components/RoleSelection';
 import { AdminLogin } from './components/AdminLogin';
 import { CitizenLogin } from './components/CitizenLogin';
+import { AgencyLogin } from './components/AgencyLogin';
 import { CommunityDashboard } from './components/CommunityDashboard';
 import { CoordinatorDashboard } from './components/CoordinatorDashboard';
 import { AgencyDashboard } from './components/AgencyDashboard';
@@ -44,8 +45,7 @@ export default function App() {
         />;
 
       case 'agency-login':
-        // Using AdminLogin component with same credentials for now (demo mode)
-        return <AdminLogin
+        return <AgencyLogin
           onLogin={(userId) => {
             setAgencyUserId(userId);
             setCurrentScreen('agency-dashboard');

@@ -4,8 +4,8 @@ import {
   Leaf, Award, Target, BarChart3, Trophy, Globe, Zap,
   ShieldCheck, Truck, Building2, Radio, Clock
 } from 'lucide-react';
-// import { WasteCompositionWidget } from './WasteCompositionWidget';
-import { getSystemStats } from '../db/stats';
+import { ImpactCharts } from './ImpactCharts';
+import { getSystemStats, getImpactTrends } from '../db/stats';
 import { getCitizenLeaderboard } from '../db/citizens';
 
 interface RoleSelectionProps {
@@ -25,6 +25,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
   // Real leaderboard from DB
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [impactData, setImpactData] = useState<any[]>([]);
 
   // 🇮🇳 Indian Context: Live Ticker Effect
   useEffect(() => {
@@ -66,6 +67,12 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
           points: l.total_points,
           rank: i + 1
         })));
+      }
+
+      // 3. Fetch Impact Trends
+      const { data: trends } = await getImpactTrends();
+      if (trends) {
+        setImpactData(trends);
       }
     }
     fetchData();
@@ -208,9 +215,9 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
               </div>
             </div>
 
-            {/* Waste Composition */}
-            <div className="h-[340px]">
-              {/* Removed Waste Composition */}
+            {/* Impact Charts Visualizations */}
+            <div className="mt-6">
+              <ImpactCharts incidents={impactData} />
             </div>
           </div>
 
