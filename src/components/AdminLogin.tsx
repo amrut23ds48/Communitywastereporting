@@ -77,11 +77,11 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
   };
 
   const handleDemoLogin = async () => {
-    setEmail('admin@crisis.com');
+    setEmail('admin@waste.com');
     setPassword('admin@123');
     setLoading(true);
     setTimeout(() => {
-      signInAdmin('admin@crisis.com', 'admin@123').then(res => {
+      signInAdmin('admin@waste.com', 'admin@123').then(res => {
         if (res.userId) onLogin(res.userId);
         setLoading(false);
       });
@@ -323,7 +323,7 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
               disabled={loading}
               className="text-xs font-mono text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded hover:bg-emerald-100 transition-colors"
             >
-              Auto-fill: admin@crisis.com
+              Auto-fill: admin@waste.com/admin@123
             </button>
           </div>
         </div>
