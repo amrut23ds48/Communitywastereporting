@@ -3,7 +3,7 @@ import { createClient } from '../utils/supabase/client';
 export interface SystemStats {
     reportsResolved: number;
     activeVolunteers: number;
-    wasteCollected: number; // Placeholder as we don't track weight yet
+    incidentsActive: number;
 }
 
 /**
@@ -14,9 +14,9 @@ export async function getSystemStats(): Promise<{ data: SystemStats | null; erro
     const supabase = createClient();
 
     try {
-        // 1. Count Resolved Reports
+        // 1. Count Resolved Incidents
         const { count: resolvedCount, error: reportsError } = await supabase
-            .from('reports')
+            .from('incidents')
             .select('*', { count: 'exact', head: true })
             .eq('status', 'resolved');
 
@@ -29,11 +29,19 @@ export async function getSystemStats(): Promise<{ data: SystemStats | null; erro
 
         if (citizensError) throw citizensError;
 
+        // 3. Count Active Incidents (Open + Dispatched + On Scene)
+        const { count: activeCount, error: activeError } = await supabase
+            .from('incidents')
+            .select('*', { count: 'exact', head: true })
+            .in('status', ['open', 'dispatched', 'on_scene']);
+
+        if (activeError) throw activeError;
+
         return {
             data: {
                 reportsResolved: resolvedCount || 0,
                 activeVolunteers: citizensCount || 0,
-                wasteCollected: (resolvedCount || 0) * 15 // Estimate: 15kg per report
+                incidentsActive: activeCount || 0
             },
             error: null
         };

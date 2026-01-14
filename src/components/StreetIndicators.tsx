@@ -77,7 +77,7 @@ const TopStreetCard = ({ street }: { street: StreetData }) => (
         </div>
         <div className="text-right">
           <span className="block text-2xl font-black text-slate-800 tracking-tight">{street.total}</span>
-          <span className="text-[10px] font-semibold text-slate-400 uppercase">Reports</span>
+          <span className="text-[10px] font-semibold text-slate-400 uppercase">Incidents</span>
         </div>
       </div>
 
@@ -222,9 +222,9 @@ export function StreetIndicators({ zone, district }: StreetIndicatorsProps) {
       {/* Footer Legend */}
       <div className="p-3 bg-slate-50 border-t border-slate-100 text-[10px] font-medium text-slate-500 flex justify-between items-center">
         <div className="flex gap-4">
-          <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /> Open</span>
-          <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /> Active</span>
-          <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Fixed</span>
+          <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /> New</span>
+          <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /> Dispatched</span>
+          <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> Resolved</span>
         </div>
         <button className="text-blue-600 hover:text-blue-700 flex items-center gap-1 hover:underline">
           Full Analysis <ArrowRight size={10} />

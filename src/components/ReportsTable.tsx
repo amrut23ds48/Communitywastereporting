@@ -4,19 +4,20 @@ import {
   ChevronDown, AlertTriangle, Clock,
   CheckCircle2, ArrowUpDown, MoreHorizontal, Trash2,
   Filter, RefreshCw, ZoomIn, Loader2,
-  ListFilter, Ban, Flag, SlidersHorizontal, Layers
+  ListFilter, Ban, Flag, SlidersHorizontal, Layers, Truck
 } from 'lucide-react';
-import { getReports, subscribeToReports } from '../db/reports';
-import { updateReportStatus, deleteReport, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
+import { getIncidents as getReports, subscribeToIncidents as subscribeToReports, updateIncidentStatus as updateReportStatus } from '../db/incidents'; // Aliased for easier refactor
+import { deleteReport, getCurrentAdmin, subscribeToAuthChanges } from '../db/admin';
 import { MAHARASHTRA_ZONES, getZoneForCity, getDistrictsForZone } from '../utils/cityZones';
 import { exportToCSV, exportToPDF } from '../utils/exportUtils';
 import { ExportDialog } from './ExportDialog';
 import type { Database } from '../utils/supabase/client';
 
 // Types
-type Report = Database['public']['Tables']['reports']['Row'];
+// Types
+type Report = Database['public']['Tables']['incidents']['Row'];
 type ReportStatus = Report['status'];
-type SortConfig = { key: keyof Report | 'urgency'; direction: 'asc' | 'desc' };
+type SortConfig = { key: keyof Report | 'severity'; direction: 'asc' | 'desc' };
 
 // --- Sub-Component: Interactive Status Select ---
 const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus, onChange: (s: ReportStatus) => void, isLoading: boolean }) => {
@@ -32,10 +33,11 @@ const StatusSelect = ({ current, onChange, isLoading }: { current: ReportStatus,
   }, []);
 
   const config = {
-    open: { label: 'Open', color: 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100', icon: AlertTriangle },
-    in_progress: { label: 'In Progress', color: 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100', icon: Clock },
+    open: { label: 'New Alert', color: 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100', icon: AlertTriangle },
+    dispatched: { label: 'Dispatched', color: 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100', icon: Truck },
+    on_scene: { label: 'On Scene', color: 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100', icon: MapPin },
     resolved: { label: 'Resolved', color: 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100', icon: CheckCircle2 },
-    false_report: { label: 'False Flag', color: 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100', icon: Ban },
+    false_report: { label: 'False Alarm', color: 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100', icon: Ban },
   };
 
   const activeConfig = config[current as keyof typeof config] || config.open;
@@ -202,7 +204,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
     }
   };
 
-  const toggleSort = (key: keyof Report | 'urgency') => {
+  const toggleSort = (key: keyof Report | 'severity') => {
     setSortConfig(current => ({
       key,
       direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
@@ -258,12 +260,13 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
 
   const wasteTypeEmoji = (type?: string) => {
     const normalized = (type || 'general').toLowerCase();
-    if (normalized.includes('organic')) return '🌿';
-    if (normalized.includes('plastic')) return '🧴';
-    if (normalized.includes('hazard')) return '☣️';
-    if (normalized.includes('construction') || normalized.includes('debris')) return '🧱';
-    if (normalized.includes('e-waste') || normalized.includes('ewaste')) return '💻';
-    return '🗑️';
+    if (normalized.includes('fire')) return '🔥';
+    if (normalized.includes('medical')) return '🚑';
+    if (normalized.includes('flood') || normalized.includes('natural')) return '🌊';
+    if (normalized.includes('accident')) return '💥';
+    if (normalized.includes('infrastructure')) return '🏗️';
+    if (normalized.includes('supplies')) return '📦';
+    return '⚠️';
   };
 
   // --- Data Processing ---
@@ -274,18 +277,18 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
       Location: r.street_name || 'Unknown',
       City: r.city,
       Status: r.status,
-      'Waste Type': r.waste_type || 'general',
-      Urgency: r.urgency || 'medium',
+      'Category': r.category || 'general',
+      'Severity': r.severity || 'medium',
       Description: r.description || ''
     }));
 
     if (format === 'csv') {
-      exportToCSV(dataToExport, 'waste_reports_export');
+      exportToCSV(dataToExport, 'incident_reports_export');
     } else {
       exportToPDF(
         dataToExport,
-        ['ID', 'Date', 'Location', 'City', 'Status', 'Waste Type', 'Urgency', 'Description'],
-        'Waste Reports Export'
+        ['ID', 'Date', 'Location', 'City', 'Status', 'Category', 'Severity', 'Description'],
+        'Incident Reports Export'
       );
     }
     setShowExport(false);
@@ -301,8 +304,8 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
         r.street_name?.toLowerCase().includes(q) ||
         r.city?.toLowerCase().includes(q) ||
         r.description?.toLowerCase().includes(q) ||
-        r.waste_type?.toLowerCase().includes(q) ||
-        r.urgency?.toLowerCase().includes(q)
+        r.category?.toLowerCase().includes(q) ||
+        r.severity?.toLowerCase().includes(q)
       );
     }
 
@@ -314,14 +317,14 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
       data = data.filter(r => (r as any).district === selectedDistrict || r.city?.toLowerCase().includes(selectedDistrict.toLowerCase()));
     }
 
-    // Waste Type Filter
-    if (filterWasteType !== 'all') {
-      data = data.filter(r => r.waste_type?.toLowerCase().includes(filterWasteType.toLowerCase()));
+    // Category Filter
+    if (filterWasteType !== 'all') { // Reusing state variable name but mapping to category
+      data = data.filter(r => r.category?.toLowerCase() === filterWasteType.toLowerCase());
     }
 
-    // Urgency Filter
-    if (filterUrgency !== 'all') {
-      data = data.filter(r => r.urgency === filterUrgency);
+    // Severity Filter
+    if (filterUrgency !== 'all') { // Reusing state variable name but mapping to severity
+      data = data.filter(r => r.severity === filterUrgency);
     }
 
     // Date Filter
@@ -344,10 +347,10 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
 
     // Sort
     data.sort((a, b) => {
-      if (sortConfig.key === 'urgency') {
-        const order = { high: 3, medium: 2, low: 1 } as const;
-        const aVal = order[(a.urgency as keyof typeof order) || 'medium'];
-        const bVal = order[(b.urgency as keyof typeof order) || 'medium'];
+      if (sortConfig.key === 'severity') {
+        const order = { critical: 4, high: 3, medium: 2, low: 1 } as const;
+        const aVal = order[(a.severity as keyof typeof order) || 'medium'];
+        const bVal = order[(b.severity as keyof typeof order) || 'medium'];
         return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
       }
 
@@ -479,7 +482,7 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
 
               {/* Waste Type Filter */}
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Waste Type</label>
+                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Category</label>
                 <div className="relative">
                   <select
                     value={filterWasteType}
@@ -487,12 +490,13 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
                     className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >
                     <option value="all">Any Type</option>
+                    <option value="fire">Fire</option>
+                    <option value="medical">Medical</option>
+                    <option value="flood">Flood/Natural Disaster</option>
+                    <option value="accident">Accident</option>
+                    <option value="infrastructure">Infrastructure</option>
+                    <option value="supplies_needed">Supplies Needed</option>
                     <option value="general">General</option>
-                    <option value="organic">Organic</option>
-                    <option value="plastic">Plastic</option>
-                    <option value="hazardous">Hazardous</option>
-                    <option value="construction">Debris/Construction</option>
-                    <option value="e-waste">E-Waste</option>
                   </select>
                   <Trash2 className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
@@ -561,10 +565,10 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-indigo-600 group" onClick={() => toggleSort('street_name')}>
                 <div className="flex items-center gap-1">Location <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
               </th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Waste Type</th>
+              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Category</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Description</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-indigo-600 group" onClick={() => toggleSort('urgency')}>
-                <div className="flex items-center gap-1">Urgency <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
+              <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-indigo-600 group" onClick={() => toggleSort('severity')}>
+                <div className="flex items-center gap-1">Severity <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" /></div>
               </th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status & Action</th>
               <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider text-right">Options</th>
@@ -673,11 +677,11 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
                       </div>
                     </td>
 
-                    {/* Waste Type */}
+                    {/* Category */}
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
-                        <span>{wasteTypeEmoji(report.waste_type)}</span>
-                        <span>{report.waste_type || 'general'}</span>
+                        {/* You might want a helper for category emoji/icon */}
+                        <span>{report.category || 'general'}</span>
                       </span>
                     </td>
 
@@ -717,15 +721,17 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
                       </div>
                     </td>
 
-                    {/* Urgency */}
+                    {/* Severity */}
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${report.urgency === 'high'
-                        ? 'bg-rose-100 text-rose-700 border-rose-200'
-                        : report.urgency === 'low'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${report.severity === 'critical'
+                        ? 'bg-red-100 text-red-700 border-red-200 animate-pulse'
+                        : report.severity === 'high'
+                          ? 'bg-orange-100 text-orange-700 border-orange-200'
+                          : report.severity === 'medium'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}>
-                        {report.urgency || 'medium'}
+                        {report.severity || 'medium'}
                       </span>
                     </td>
 

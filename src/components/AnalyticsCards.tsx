@@ -14,6 +14,7 @@ interface AnalyticsCardsProps {
     zone?: string;
     district?: string;
   };
+  activeFilter?: string;
 }
 
 // --- Helper: Count Up Animation ---
@@ -128,7 +129,7 @@ const StatCard = ({
 // --- Main Component ---
 export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'all', filters }: AnalyticsCardsProps) {
   const [stats, setStats] = useState({
-    totalReports: 0, openReports: 0, resolvedReports: 0, falseReports: 0, thisMonthChange: 0,
+    totalIncidents: 0, openIncidents: 0, resolvedIncidents: 0, falseAlarms: 0, thisMonthChange: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -153,8 +154,8 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
   const cardConfig = useMemo(() => [
     {
       id: 'total',
-      title: 'Total Reports',
-      value: stats.totalReports,
+      title: 'Total Incidents',
+      value: stats.totalIncidents,
       label: 'System wide',
       icon: Activity,
       filter: 'all',
@@ -169,9 +170,9 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
     },
     {
       id: 'open',
-      title: 'Open Issues',
-      value: stats.openReports,
-      label: 'Needs attention',
+      title: 'Active Alerts',
+      value: stats.openIncidents, // This could be open + active if we want "Pending"
+      label: 'New & Unassigned',
       icon: AlertCircle,
       filter: 'open',
       trend: null,
@@ -186,8 +187,8 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
     {
       id: 'resolved',
       title: 'Resolved',
-      value: stats.resolvedReports,
-      label: 'Fixed this month',
+      value: stats.resolvedIncidents,
+      label: 'Closed this month',
       icon: CheckCircle2,
       filter: 'resolved',
       trend: { value: 'High', isPositive: true },
@@ -201,8 +202,8 @@ export function AnalyticsCards({ onCardClick, refreshKey = 0, activeFilter = 'al
     },
     {
       id: 'false',
-      title: 'False Flags',
-      value: stats.falseReports,
+      title: 'False Alarms',
+      value: stats.falseAlarms,
       label: 'Invalid reports',
       icon: XCircle,
       filter: 'false_report',

@@ -7,55 +7,98 @@ const supabaseUrl = `https://${projectId}.supabase.co`;
 export type Database = {
   public: {
     Tables: {
-      reports: {
+      incidents: {
         Row: {
           id: string;
-          image_url: string;
-          latitude: number;
-          longitude: number;
-          street_name: string;
-          city: string;
-          waste_type: string;
-          urgency: 'low' | 'medium' | 'high';
-          description: string;
-          status: 'open' | 'in_progress' | 'resolved' | 'false_report';
-          citizen_id: string | null;
           created_at: string;
           updated_at: string;
+          description: string;
+          image_url: string | null;
+          latitude: number;
+          longitude: number;
+          status: 'open' | 'dispatched' | 'on_scene' | 'resolved' | 'false_report';
+          user_id: string | null;
+          street_name: string;
+          city: string;
+          category: string;
+          severity: 'low' | 'medium' | 'high' | 'critical';
           resolved_at: string | null;
         };
         Insert: {
           id?: string;
+          created_at?: string;
+          updated_at?: string;
+          description: string;
           image_url: string;
           latitude: number;
           longitude: number;
+          status?: 'open' | 'dispatched' | 'on_scene' | 'resolved' | 'false_report';
+          user_id?: string | null;
           street_name: string;
           city: string;
-          waste_type?: string;
-          urgency?: 'low' | 'medium' | 'high';
-          description: string;
-          status?: 'open' | 'in_progress' | 'resolved' | 'false_report';
-          citizen_id?: string | null;
-          created_at?: string;
-          updated_at?: string;
+          category: string;
+          severity: 'low' | 'medium' | 'high' | 'critical';
           resolved_at?: string | null;
         };
         Update: {
           id?: string;
+          created_at?: string;
+          updated_at?: string;
+          description?: string;
           image_url?: string;
           latitude?: number;
           longitude?: number;
+          status?: 'open' | 'dispatched' | 'on_scene' | 'resolved' | 'false_report';
+          user_id?: string | null;
           street_name?: string;
           city?: string;
-          waste_type?: string;
-          urgency?: 'low' | 'medium' | 'high';
-          description?: string;
-          status?: 'open' | 'in_progress' | 'resolved' | 'false_report';
-          citizen_id?: string | null;
-          created_at?: string;
-          updated_at?: string;
+          category?: string;
+          severity?: 'low' | 'medium' | 'high' | 'critical';
           resolved_at?: string | null;
         };
+        Relationships: [];
+      };
+      resources: {
+        Row: {
+          id: string;
+          created_at: string;
+          updated_at: string;
+          name: string;
+          type: 'ambulance' | 'personnel' | 'supplies' | 'equipment' | 'shelter' | 'other';
+          quantity: number;
+          latitude: number;
+          longitude: number;
+          status: 'available' | 'dispatched' | 'depleted' | 'maintenance';
+          contact_info: string | null;
+          agency_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          name: string;
+          type: 'ambulance' | 'personnel' | 'supplies' | 'equipment' | 'shelter' | 'other';
+          quantity?: number;
+          latitude: number;
+          longitude: number;
+          status?: 'available' | 'dispatched' | 'depleted' | 'maintenance';
+          contact_info?: string | null;
+          agency_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          name?: string;
+          type?: 'ambulance' | 'personnel' | 'supplies' | 'equipment' | 'shelter' | 'other';
+          quantity?: number;
+          latitude?: number;
+          longitude?: number;
+          status?: 'available' | 'dispatched' | 'depleted' | 'maintenance';
+          contact_info?: string | null;
+          agency_id?: string | null;
+        };
+        Relationships: [];
       };
       admin_actions: {
         Row: {
@@ -74,6 +117,7 @@ export type Database = {
           new_status: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       notifications: {
         Row: {
@@ -94,6 +138,7 @@ export type Database = {
           is_read?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       citizens: {
         Row: {
@@ -138,6 +183,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       citizen_activity: {
         Row: {
@@ -167,6 +213,7 @@ export type Database = {
           description?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: {
@@ -206,9 +253,17 @@ export type Database = {
           neighborhood_rank: number | null;
         };
       };
+      Functions: {
+        [_ in never]: never;
+      };
+      Enums: {
+        [_ in never]: never;
+      };
+      CompositeTypes: {
+        [_ in never]: never;
+      };
     };
   };
-};
 
 /**
  * Create Supabase client using official @supabase/supabase-js

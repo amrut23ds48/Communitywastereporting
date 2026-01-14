@@ -136,14 +136,13 @@ export function MonthlyInsights({ zone, district }: MonthlyInsightsProps) {
 
       if (compRes.composition) {
         const palette: Record<string, string> = {
-          organic: '#10B981',
-          plastic: '#3B82F6',
-          hazard: '#EF4444',
-          hazardous: '#EF4444',
-          debris: '#F97316',
-          construction: '#F97316',
-          'e-waste': '#8B5CF6',
-          ewaste: '#8B5CF6',
+          fire: '#DC2626', // Red
+          medical: '#2563EB', // Blue
+          crime: '#1F2937', // Dark Grey/Black
+          natural_disaster: '#D97706', // Amber
+          accident: '#9333EA', // Purple
+          infrastructure: '#4B5563', // Grey
+          other: '#64748B',
           general: '#64748B',
         };
         const comp = compRes.composition.map(slice => ({
@@ -157,7 +156,8 @@ export function MonthlyInsights({ zone, district }: MonthlyInsightsProps) {
       if (compRes.status) {
         const palette: Record<string, string> = {
           open: '#F97316',
-          in_progress: '#3B82F6',
+          dispatched: '#F59E0B',
+          on_scene: '#3B82F6',
           resolved: '#10B981',
           false_report: '#94A3B8',
         };
@@ -227,8 +227,8 @@ export function MonthlyInsights({ zone, district }: MonthlyInsightsProps) {
             </div>
             <span className="text-xs text-slate-400 font-medium">Last updated: Just now</span>
           </div>
-          <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Analytics Overview</h2>
-          <p className="text-slate-500">Monitor city-wide waste management performance.</p>
+          <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Crisis Analytics</h2>
+          <p className="text-slate-500">Monitor community safety and response metrics.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -376,11 +376,11 @@ export function MonthlyInsights({ zone, district }: MonthlyInsightsProps) {
         {/* --- SECONDARY CHARTS GRID --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-          {/* Waste Composition Graph */}
+          {/* Incident Category Graph */}
           <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col h-[320px]">
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="font-bold text-slate-800">Waste Composition Graph</h3>
+                <h3 className="font-bold text-slate-800">Incident Categories</h3>
                 <p className="text-xs text-slate-400 font-medium">Distribution by category</p>
               </div>
               <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal size={16} /></button>
@@ -418,7 +418,7 @@ export function MonthlyInsights({ zone, district }: MonthlyInsightsProps) {
                 <span className="text-2xl font-extrabold text-slate-800 leading-none">
                   {composition.reduce((sum, c) => sum + c.value, 0)}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Reports</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Incidents</span>
               </div>
             </div>
           </div>
@@ -428,7 +428,7 @@ export function MonthlyInsights({ zone, district }: MonthlyInsightsProps) {
             <div className="flex justify-between items-start mb-2">
               <div>
                 <h3 className="font-bold text-slate-800">Status Distribution</h3>
-                <p className="text-xs text-slate-400 font-medium">Reports by status</p>
+                <p className="text-xs text-slate-400 font-medium">Incidents by status</p>
               </div>
               <button className="text-slate-400 hover:text-slate-600"><MoreHorizontal size={16} /></button>
             </div>

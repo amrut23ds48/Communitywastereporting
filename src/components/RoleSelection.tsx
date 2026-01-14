@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Users, Shield, ArrowRight, Check, MapPin,
   Leaf, Award, Target, BarChart3, Trophy, Globe, Zap,
-  ShieldCheck
+  ShieldCheck, Truck
 } from 'lucide-react';
-import { WasteCompositionWidget } from './WasteCompositionWidget';
+// import { WasteCompositionWidget } from './WasteCompositionWidget';
 import { getSystemStats } from '../db/stats';
 import { getCitizenLeaderboard } from '../db/citizens';
 
@@ -20,7 +20,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   const [stats, setStats] = useState({
     reportsResolved: 0,
     activeVolunteers: 0,
-    wasteCollected: 0 // Estimated
+    incidentsActive: 0 // Was wasteCollected
   });
 
   // Real leaderboard from DB
@@ -29,12 +29,12 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   // 🇮🇳 Indian Context: Live Ticker Effect
   useEffect(() => {
     const activities = [
-      "🌿 Priya S. reported garbage in Indiranagar, Bangalore",
-      "✅ Swachh Bharat Team cleared Sector 17, Chandigarh",
-      "🏆 Rohan K. earned 'Green Warrior' badge in Mumbai",
-      "🚛 Collection truck dispatched to Connaught Place, Delhi",
-      "♻️ 50kg of plastic recycled in Andheri West today",
-      "🙏 Ananya M. donated 500 Karma Points to tree plantation"
+      "🚨 Fire reported in Andheri East - Units dispatched",
+      "🚑 Ambulance requested near Dadar Station",
+      "⚠️ Flood warning issued for low-lying areas in Mumbai",
+      "✅ Medical supplies delivered to Relief Camp A",
+      "🚒 Fire truck arrived at Sector 17, Chandigarh",
+      "🙏 Volunteers distributing food packets in Pune"
     ];
 
     let index = 0;
@@ -79,14 +79,14 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   const roles = [
     {
       id: 'citizen',
-      title: 'Nagrik (Citizen)',
-      subtitle: 'Report, Earn Karma, Impact',
-      description: 'Be a responsible citizen. Report issues in your locality, track cleanups, and earn Green Karma points.',
+      title: 'Community Member',
+      subtitle: 'Report Incidents, Request Help',
+      description: 'Report emergencies, find safe zones, and help your community during crises.',
       icon: Users,
       features: [
-        { text: 'Snap & Report (Geo-tagged)', icon: MapPin },
-        { text: 'Earn Green Karma Points', icon: Award },
-        { text: 'Leaderboard Recognition', icon: Trophy }
+        { text: 'Report Incidents (Geo-tagged)', icon: MapPin },
+        { text: 'Find Safe Places', icon: Shield },
+        { text: 'Real-time Alerts', icon: Zap }
       ],
       color: 'emerald',
       bgGradient: 'from-emerald-600 to-teal-600',
@@ -94,14 +94,14 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
     },
     {
       id: 'admin',
-      title: 'Admin Authority',
-      subtitle: 'Municipal & NGO Management',
-      description: 'For municipal officers and NGO leaders to manage resources, analyze heatmaps, and dispatch cleanup crews.',
-      icon: Shield,
+      title: 'Agency Coordinator',
+      subtitle: 'Dispatch & Resource Mgmt',
+      description: 'For authorized agencies to manage incidents, dispatch resources, and coordinate response.',
+      icon: ShieldCheck,
       features: [
-        { text: 'Dispatch Cleanup Crews', icon: ShieldCheck },
-        { text: 'City-wide Heatmaps', icon: BarChart3 },
-        { text: 'Impact Analytics', icon: Target }
+        { text: 'Dispatch Resources', icon: Truck },
+        { text: 'Crisis Heatmaps', icon: BarChart3 },
+        { text: 'Response Analytics', icon: Target }
       ],
       color: 'blue',
       bgGradient: 'from-blue-600 to-indigo-600',
@@ -141,17 +141,17 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
         <div className="text-center max-w-4xl mx-auto mb-16 relative">
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-32 h-32 bg-gradient-to-tr from-emerald-400 to-teal-500 rounded-full blur-[60px] opacity-40"></div>
 
-          <h1 className="text-6xl md:text-8xl font-black mb-4 tracking-tighter relative z-10 drop-shadow-sm">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-700 filter drop-shadow-sm">
-              SwachhFlow
+          <h1 className="text-5xl md:text-7xl font-black mb-4 tracking-tighter relative z-10 drop-shadow-sm">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-600 via-orange-500 to-rose-700 filter drop-shadow-sm">
+              Crisis Response
             </span>
           </h1>
 
           <p className="text-xl md:text-2xl text-slate-600 max-w-2xl mx-auto leading-relaxed font-medium">
-            Clean India. <span className="text-emerald-600 font-bold">Green Future.</span>
+            Integrated Community <span className="text-rose-600 font-bold">Resilience Platform.</span>
           </p>
           <p className="mt-2 text-slate-500">
-            Join the digital revolution for a cleaner community.
+            Join the digital revolution for a safer community.
           </p>
         </div>
 
@@ -184,9 +184,9 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
                 <div className="mt-4 pt-4 border-t border-slate-200/50">
                   <div className="text-center">
-                    <span className="text-4xl font-bold text-emerald-600 block mb-1">{stats.wasteCollected.toLocaleString()}kg</span>
-                    <span className="text-xs font-semibold text-emerald-800 bg-emerald-100 px-2 py-1 rounded-full uppercase tracking-wider">
-                      Waste Removed
+                    <span className="text-4xl font-bold text-rose-600 block mb-1">{stats.incidentsActive}</span>
+                    <span className="text-xs font-semibold text-rose-800 bg-rose-100 px-2 py-1 rounded-full uppercase tracking-wider">
+                      Active Incidents
                     </span>
                   </div>
                 </div>
@@ -195,9 +195,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 
             {/* Waste Composition */}
             <div className="h-[340px]">
-              <WasteCompositionWidget
-                className="bg-white/60 backdrop-blur-xl border-white/60 rounded-3xl"
-              />
+              {/* Removed Waste Composition */}
             </div>
           </div>
 
@@ -344,7 +342,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
               <ul className="space-y-3">
                 <li className="flex items-center gap-3 text-sm text-slate-600">
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">1</div>
-                  Snap a photo of waste
+                  Snap a photo of the incident/hazard
                 </li>
                 <li className="flex items-center gap-3 text-sm text-slate-600">
                   <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">2</div>
@@ -362,7 +360,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
         {/* Footer */}
         <footer className="mt-20 text-center pb-8">
           <p className="text-slate-500 text-sm font-medium">
-            Proudly Made in 🇮🇳 • Contributing to <span className="text-orange-600 font-bold">Swachh Bharat Abhiyan</span>
+            Proudly Made in 🇮🇳 • Contributing to <span className="text-orange-600 font-bold">National Disaster Management</span>
           </p>
         </footer>
 

@@ -2,14 +2,14 @@ import { createClient } from '../utils/supabase/client';
 import type { Database } from '../utils/supabase/client';
 import { getDistrictsForZone, getZoneForCity } from '../utils/cityZones';
 
-type Report = Database['public']['Tables']['reports']['Row'];
+type Incident = Database['public']['Tables']['incidents']['Row'];
 
 export interface AnalyticsOverview {
-  totalReports: number;
-  openReports: number;
-  inProgressReports: number;
-  resolvedReports: number;
-  falseReports: number;
+  totalIncidents: number;
+  openIncidents: number;
+  activeIncidents: number; // dispatched + on_scene + open? Or just dispatched/on_scene
+  resolvedIncidents: number;
+  falseAlarms: number;
   thisMonthTotal: number;
   thisMonthChange: number;
 }
@@ -19,7 +19,7 @@ export interface StreetStatistics {
   city: string;
   totalReports: number;
   openReports: number;
-  inProgressReports: number;
+  inProgressReports: number; // Maps to active/dispatched
   resolvedReports: number;
   falseReports: number;
   lastReportDate: string;
@@ -34,7 +34,7 @@ export interface MonthlyInsight {
   falseReports: number;
 }
 
-export interface WasteCompositionSlice {
+export interface CategoryDistributionSlice {
   name: string;
   value: number;
 }
@@ -45,20 +45,19 @@ export interface StatusDistributionSlice {
 }
 
 /**
- * Get analytics overview for dashboard cards
+ * Filter helper
  */
-// Rewritten filter helper for in-memory consistency
-const matchesFilters = (report: any, filters?: { zone?: string; district?: string }) => {
+const matchesFilters = (incident: any, filters?: { zone?: string; district?: string }) => {
   if (!filters) return true;
 
   // Zone Check
   if (filters.zone && filters.zone !== 'all') {
-    if (getZoneForCity(report.city) !== filters.zone) return false;
+    if (getZoneForCity(incident.city) !== filters.zone) return false;
   }
 
   // District Check
   if (filters.district && filters.district !== 'all') {
-    if (!report.city?.toLowerCase().includes(filters.district.toLowerCase())) return false;
+    if (!incident.city?.toLowerCase().includes(filters.district.toLowerCase())) return false;
   }
 
   return true;
@@ -68,19 +67,15 @@ export async function getAnalyticsOverview(filters?: { zone?: string; district?:
   const supabase = createClient();
 
   try {
-    // 1. Fetch raw data (Optimization: fetch all active/recent if generic, but for now fetch required fields)
-    // We fetch everything relevant (status, created_at, city) and filter in memory to ensure logic match.
-    const { data: allReports, error } = await supabase
-      .from('reports')
+    const { data: allIncidents, error } = await supabase
+      .from('incidents')
       .select('status, created_at, city');
 
     if (error) throw error;
-    if (!allReports) return { data: null, error: null };
+    if (!allIncidents) return { data: null, error: null };
 
-    // 2. Filter in Memory
-    const filteredReports = allReports.filter((r: any) => matchesFilters(r, filters));
+    const filtered = allIncidents.filter((r: any) => matchesFilters(r, filters));
 
-    // 3. Process Dates
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -88,25 +83,24 @@ export async function getAnalyticsOverview(filters?: { zone?: string; district?:
     const startOfLastMonth = new Date(startOfMonth);
     startOfLastMonth.setMonth(startOfLastMonth.getMonth() - 1);
 
-    const thisMonthReports = filteredReports.filter((r: any) => new Date(r.created_at) >= startOfMonth);
-    const lastMonthReports = filteredReports.filter((r: any) => {
+    const thisMonthIncidents = filtered.filter((r: any) => new Date(r.created_at) >= startOfMonth);
+    const lastMonthIncidents = filtered.filter((r: any) => {
       const d = new Date(r.created_at);
       return d >= startOfLastMonth && d < startOfMonth;
     });
 
-    // 4. Calculate Stats
-    const thisMonthTotal = thisMonthReports.length;
-    const lastMonthTotal = lastMonthReports.length;
+    const thisMonthTotal = thisMonthIncidents.length;
+    const lastMonthTotal = lastMonthIncidents.length;
     const thisMonthChange = lastMonthTotal > 0
       ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
       : 0;
 
     const overview: AnalyticsOverview = {
-      totalReports: filteredReports.length,
-      openReports: filteredReports.filter((r: any) => r.status === 'open').length,
-      inProgressReports: filteredReports.filter((r: any) => r.status === 'in_progress').length,
-      resolvedReports: filteredReports.filter((r: any) => r.status === 'resolved').length,
-      falseReports: filteredReports.filter((r: any) => r.status === 'false_report').length,
+      totalIncidents: filtered.length,
+      openIncidents: filtered.filter((r: any) => r.status === 'open').length,
+      activeIncidents: filtered.filter((r: any) => ['dispatched', 'on_scene'].includes(r.status)).length,
+      resolvedIncidents: filtered.filter((r: any) => r.status === 'resolved').length,
+      falseAlarms: filtered.filter((r: any) => r.status === 'false_report').length,
       thisMonthTotal,
       thisMonthChange,
     };
@@ -118,9 +112,6 @@ export async function getAnalyticsOverview(filters?: { zone?: string; district?:
   }
 }
 
-/**
- * Get street-level statistics
- */
 export async function getStreetStatistics(
   streetName?: string,
   filters?: { zone?: string; district?: string }
@@ -128,62 +119,57 @@ export async function getStreetStatistics(
   const supabase = createClient();
 
   try {
-    // Fetch all for consistent filtering
-    let query = supabase
-      .from('reports')
+    const { data: allIncidents, error } = await supabase
+      .from('incidents')
       .select('street_name, city, status, created_at');
 
-    const { data: allReports, error } = await query;
     if (error) throw error;
-    if (!allReports) return { data: null, error: null };
+    if (!allIncidents) return { data: null, error: null };
 
-    // Apply strict filters in JS
-    const reports = allReports.filter((r: any) => {
+    const incidents = allIncidents.filter((r: any) => {
       if (streetName && r.street_name !== streetName) return false;
       return matchesFilters(r, filters);
     });
 
-    if (error) throw error;
-    if (!reports) return { data: null, error: null };
-
-    // Group by street
     const streetMap = new Map<string, {
       city: string;
       total: number;
       open: number;
-      inProgress: number;
+      inProgress: number; // Active (dispatched/on_scene)
       resolved: number;
       falseReports: number;
       lastDate: string;
     }>();
 
-    reports.forEach((report: any) => {
-      const existing = streetMap.get(report.street_name);
+    incidents.forEach((inc: any) => {
+      const existing = streetMap.get(inc.street_name);
+
+      const isActive = ['dispatched', 'on_scene'].includes(inc.status);
 
       if (existing) {
         existing.total++;
-        if (report.status === 'open') existing.open++;
-        if (report.status === 'in_progress') existing.inProgress++;
-        if (report.status === 'resolved') existing.resolved++;
-        if (report.status === 'false_report') existing.falseReports++;
-        if (new Date(report.created_at) > new Date(existing.lastDate)) {
-          existing.lastDate = report.created_at;
+        if (inc.status === 'open') existing.open++;
+        if (isActive) existing.inProgress++;
+        if (inc.status === 'resolved') existing.resolved++;
+        if (inc.status === 'false_report') existing.falseReports++;
+        if (new Date(inc.created_at) > new Date(existing.lastDate)) {
+          existing.lastDate = inc.created_at;
         }
       } else {
-        streetMap.set(report.street_name, {
-          city: report.city,
+        streetMap.set(inc.street_name, {
+          city: inc.city,
           total: 1,
-          open: report.status === 'open' ? 1 : 0,
-          inProgress: report.status === 'in_progress' ? 1 : 0,
-          resolved: report.status === 'resolved' ? 1 : 0,
-          falseReports: report.status === 'false_report' ? 1 : 0,
-          lastDate: report.created_at,
+          open: inc.status === 'open' ? 1 : 0,
+          inProgress: isActive ? 1 : 0,
+          resolved: inc.status === 'resolved' ? 1 : 0,
+          falseReports: inc.status === 'false_report' ? 1 : 0,
+          lastDate: inc.created_at,
         });
       }
     });
 
-    const data: StreetStatistics[] = Array.from(streetMap.entries()).map(([streetName, stats]) => ({
-      streetName,
+    const data: StreetStatistics[] = Array.from(streetMap.entries()).map(([name, stats]) => ({
+      streetName: name,
       city: stats.city,
       totalReports: stats.total,
       openReports: stats.open,
@@ -200,9 +186,6 @@ export async function getStreetStatistics(
   }
 }
 
-/**
- * Get monthly insights for charts
- */
 export async function getMonthlyInsights(
   months: number = 6,
   filters?: { zone?: string; district?: string }
@@ -210,26 +193,22 @@ export async function getMonthlyInsights(
   const supabase = createClient();
 
   try {
-    // Calculate start date
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months + 1);
     startDate.setDate(1);
     startDate.setHours(0, 0, 0, 0);
 
-    // Fetch defaults
-    const query = supabase
-      .from('reports')
+    const { data: allIncidents, error } = await supabase
+      .from('incidents')
       .select('status, created_at, city')
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: true });
 
-    const { data: allReports, error } = await query;
     if (error) throw error;
-    if (!allReports) return { data: null, error: null };
+    if (!allIncidents) return { data: null, error: null };
 
-    const reports = allReports.filter((r: any) => matchesFilters(r, filters));
+    const incidents = allIncidents.filter((r: any) => matchesFilters(r, filters));
 
-    // Group by month
     const monthMap = new Map<string, {
       total: number;
       open: number;
@@ -238,30 +217,29 @@ export async function getMonthlyInsights(
       falseReports: number;
     }>();
 
-    reports.forEach((report: any) => {
-      const date = new Date(report.created_at);
+    incidents.forEach((inc: any) => {
+      const date = new Date(inc.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const isActive = ['dispatched', 'on_scene'].includes(inc.status);
 
       const existing = monthMap.get(monthKey);
-
       if (existing) {
         existing.total++;
-        if (report.status === 'open') existing.open++;
-        if (report.status === 'in_progress') existing.inProgress++;
-        if (report.status === 'resolved') existing.resolved++;
-        if (report.status === 'false_report') existing.falseReports++;
+        if (inc.status === 'open') existing.open++;
+        if (isActive) existing.inProgress++;
+        if (inc.status === 'resolved') existing.resolved++;
+        if (inc.status === 'false_report') existing.falseReports++;
       } else {
         monthMap.set(monthKey, {
           total: 1,
-          open: report.status === 'open' ? 1 : 0,
-          inProgress: report.status === 'in_progress' ? 1 : 0,
-          resolved: report.status === 'resolved' ? 1 : 0,
-          falseReports: report.status === 'false_report' ? 1 : 0,
+          open: inc.status === 'open' ? 1 : 0,
+          inProgress: isActive ? 1 : 0,
+          resolved: inc.status === 'resolved' ? 1 : 0,
+          falseReports: inc.status === 'false_report' ? 1 : 0,
         });
       }
     });
 
-    // Fill in missing months with zeros
     const data: MonthlyInsight[] = [];
     const currentDate = new Date(startDate);
 
@@ -294,32 +272,25 @@ export async function getMonthlyInsights(
   }
 }
 
-/**
- * Get overall waste composition (by waste_type) and status distribution
- */
 export async function getCompositionAndStatus(
   startDate?: Date,
   filters?: { zone?: string; district?: string }
 ): Promise<{
-  composition: WasteCompositionSlice[] | null;
+  composition: CategoryDistributionSlice[] | null;
   status: StatusDistributionSlice[] | null;
   error: Error | null;
 }> {
   const supabase = createClient();
 
   try {
-    // Fetch defaults
-    const query = supabase
-      .from('reports')
-      .select('waste_type, status, city, created_at'); // added city and created_at for filtering
-
-    const { data: allReports, error } = await query;
+    const { data: allIncidents, error } = await supabase
+      .from('incidents')
+      .select('category, status, city, created_at');
 
     if (error) throw error;
-    if (!allReports) return { composition: null, status: null, error: null };
+    if (!allIncidents) return { composition: null, status: null, error: null };
 
-    // Filter in memory
-    const reports = allReports.filter((r: any) => {
+    const incidents = allIncidents.filter((r: any) => {
       if (startDate && new Date(r.created_at) < startDate) return false;
       return matchesFilters(r, filters);
     });
@@ -327,9 +298,9 @@ export async function getCompositionAndStatus(
     const compositionMap = new Map<string, number>();
     const statusMap = new Map<string, number>();
 
-    reports.forEach((r: any) => {
-      const wt = (r.waste_type || 'general').toLowerCase();
-      compositionMap.set(wt, (compositionMap.get(wt) || 0) + 1);
+    incidents.forEach((r: any) => {
+      const cat = (r.category || 'general').toLowerCase();
+      compositionMap.set(cat, (compositionMap.get(cat) || 0) + 1);
 
       const st = r.status || 'open';
       statusMap.set(st, (statusMap.get(st) || 0) + 1);
@@ -352,76 +323,7 @@ export async function getCompositionAndStatus(
   }
 }
 
-/**
- * Get heatmap data (reports grouped by location)
- */
-export async function getHeatmapData(filters?: { zone?: string; district?: string }): Promise<{
-  data: Array<{ lat: number; lng: number; intensity: number }> | null;
-  error: Error | null
-}> {
-  const supabase = createClient();
-
-  try {
-    // Fetch defaults
-    const query = supabase
-      .from('reports')
-      .select('latitude, longitude, status, city')
-      .in('status', ['open', 'in_progress']);
-
-    const { data: allReports, error } = await query;
-
-    if (error) throw error;
-    if (!allReports) return { data: null, error: null };
-
-    const reports = allReports.filter((r: any) => matchesFilters(r, filters));
-
-    // Group nearby reports (simple grid-based clustering)
-    const gridSize = 0.01; // ~1km
-    const heatmap = new Map<string, { lat: number; lng: number; count: number }>();
-
-    reports.forEach((report: any) => {
-      const gridLat = Math.floor(report.latitude / gridSize) * gridSize;
-      const gridLng = Math.floor(report.longitude / gridSize) * gridSize;
-      const key = `${gridLat}-${gridLng}`;
-
-      const existing = heatmap.get(key);
-      if (existing) {
-        existing.count++;
-        existing.lat = (existing.lat * (existing.count - 1) + report.latitude) / existing.count;
-        existing.lng = (existing.lng * (existing.count - 1) + report.longitude) / existing.count;
-      } else {
-        heatmap.set(key, {
-          lat: report.latitude,
-          lng: report.longitude,
-          count: 1,
-        });
-      }
-    });
-
-    const data = Array.from(heatmap.values()).map(point => ({
-      lat: point.lat,
-      lng: point.lng,
-      intensity: point.count,
-    }));
-
-    return { data, error: null };
-  } catch (error) {
-    console.error('Error fetching heatmap data:', error);
-    return { data: null, error: error as Error };
-  }
-}
-
-export interface WeeklyStat {
-  week: string;
-  open: number;
-  inProgress: number;
-  resolved: number;
-}
-
-/**
- * Get weekly statistics for the current month
- */
-export async function getCurrentMonthWeeklyStats(filters?: { zone?: string; district?: string }): Promise<{ data: WeeklyStat[] | null; error: Error | null }> {
+export async function getCurrentMonthWeeklyStats(filters?: { zone?: string; district?: string }): Promise<{ data: any[] | null; error: Error | null }> {
   const supabase = createClient();
 
   try {
@@ -429,37 +331,33 @@ export async function getCurrentMonthWeeklyStats(filters?: { zone?: string; dist
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    // Fetch defaults
-    const query = supabase
-      .from('reports')
+    const { data: allIncidents, error } = await supabase
+      .from('incidents')
       .select('status, created_at, city')
       .gte('created_at', startOfMonth.toISOString())
       .order('created_at', { ascending: true });
 
-    const { data: allReports, error } = await query;
-
     if (error) throw error;
-    if (!allReports) return { data: [], error: null };
+    if (!allIncidents) return { data: [], error: null };
 
-    const reports = allReports.filter((r: any) => matchesFilters(r, filters));
+    const incidents = allIncidents.filter((r: any) => matchesFilters(r, filters));
 
-    // Initialize weeks (assuming max 5 weeks)
-    const weeklyData: WeeklyStat[] = Array(5).fill(0).map((_, i) => ({
+    const weeklyData = Array(5).fill(0).map((_, i) => ({
       week: `Week ${i + 1}`,
       open: 0,
-      inProgress: 0,
+      active: 0,
       resolved: 0,
     }));
 
-    reports.forEach((report: any) => {
-      const date = new Date(report.created_at);
+    incidents.forEach((inc: any) => {
+      const date = new Date(inc.created_at);
       const dayOfMonth = date.getDate();
-      // Simple week calculation: (day - 1) / 7
       const weekIndex = Math.min(Math.floor((dayOfMonth - 1) / 7), 4);
+      const isActive = ['dispatched', 'on_scene'].includes(inc.status);
 
-      if (report.status === 'open') weeklyData[weekIndex].open++;
-      if (report.status === 'in_progress') weeklyData[weekIndex].inProgress++;
-      if (report.status === 'resolved') weeklyData[weekIndex].resolved++;
+      if (inc.status === 'open') weeklyData[weekIndex].open++;
+      if (isActive) weeklyData[weekIndex].active++;
+      if (inc.status === 'resolved') weeklyData[weekIndex].resolved++;
     });
 
     return { data: weeklyData, error: null };

@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { RoleSelection } from './components/RoleSelection';
 import { AdminLogin } from './components/AdminLogin';
 import { CitizenLogin } from './components/CitizenLogin';
-import { CitizenDashboard } from './components/CitizenDashboard';
-import { AdminDashboard } from './components/AdminDashboard';
+import { CommunityDashboard } from './components/CommunityDashboard';
+import { CoordinatorDashboard } from './components/CoordinatorDashboard';
 
 type Screen =
   | 'role-selection'
@@ -47,7 +47,7 @@ export default function App() {
         />;
 
       case 'citizen-dashboard':
-        return <CitizenDashboard
+        return <CommunityDashboard
           userId={citizenUserId!}
           onLogout={() => {
             setCitizenUserId(null);
@@ -56,7 +56,7 @@ export default function App() {
         />;
 
       case 'admin-dashboard':
-        return <AdminDashboard
+        return <CoordinatorDashboard
           userId={adminUserId!}
           onLogout={() => {
             setAdminUserId(null);
