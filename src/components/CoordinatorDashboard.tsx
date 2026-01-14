@@ -15,7 +15,7 @@ import { MAHARASHTRA_ZONES, getDistrictsForZone } from '../utils/cityZones';
 import { exportToCSV, exportToPDF } from '../utils/exportUtils';
 import { ExportDialog } from './ExportDialog';
 import type { Database } from '../utils/supabase/client';
-import { SafePlacesView } from './dashboard-views/SafePlacesView'; // Reuse for resource mgmt
+import { ResourceManagementView } from './dashboard-views/ResourceManagementView';
 
 type Notification = Database['public']['Tables']['notifications']['Row'];
 
@@ -186,11 +186,7 @@ export function CoordinatorDashboard({ onLogout, userId }: CoordinatorDashboardP
 
                         {activeTab === 'resources' && (
                             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-bold">Resource Management</h2>
-                                    <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm">+ Add Resource</button>
-                                </div>
-                                <SafePlacesView />
+                                <ResourceManagementView />
                             </div>
                         )}
                     </div>
