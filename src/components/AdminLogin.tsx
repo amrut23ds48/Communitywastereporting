@@ -137,8 +137,43 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
                 <Cpu className="w-4 h-4 text-purple-400" />
                 <span className="text-xs font-semibold text-slate-300">AI Latency</span>
               </div>
+<<<<<<< HEAD
               <div className="text-xl font-mono text-white">24ms</div>
               <div className="text-[10px] text-slate-400 mt-1">Optimization Active</div>
+=======
+
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold py-3.5 rounded-lg shadow-md hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-4 h-4" />
+                      Secure Login
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {/* Quick Demo for Devs */}
+            <div className="mt-8 text-center">
+              <p className="text-xs text-slate-400 mb-2">Developer Access</p>
+              <button
+                onClick={handleDemoLogin}
+                disabled={loading}
+                className="text-xs font-mono text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded hover:bg-emerald-100 transition-colors"
+              >
+                Auto-fill: admin@waste.com/admin123
+              </button>
+>>>>>>> bae43adae3cf7049a722df9930bddd32f108a823
             </div>
           </div>
 
@@ -184,6 +219,7 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
           </div>
         </div>
       </div>
+<<<<<<< HEAD
 
       {/* RIGHT PANEL: Professional Form */}
       <div className="w-full lg:w-[55%] flex flex-col justify-center px-8 lg:px-32 py-12 bg-white relative">
@@ -338,3 +374,7 @@ export function AdminLogin({ onLogin, onBack }: AdminLoginProps) {
     </div>
   );
 }
+=======
+    );
+  }
+>>>>>>> bae43adae3cf7049a722df9930bddd32f108a823
