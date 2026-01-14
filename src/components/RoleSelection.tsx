@@ -336,23 +336,89 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
               <ShieldCheck className="w-4 h-4" />
             </div>
 
-            {/* How It Works (Simplified) */}
-            <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-3xl p-6 shadow-xl">
-              <h4 className="font-bold text-slate-800 text-sm mb-4">How to Earn Karma?</h4>
-              <ul className="space-y-3">
-                <li className="flex items-center gap-3 text-sm text-slate-600">
-                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">1</div>
-                  Snap a photo of the incident/hazard
-                </li>
-                <li className="flex items-center gap-3 text-sm text-slate-600">
-                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">2</div>
-                  Get AI verification
-                </li>
-                <li className="flex items-center gap-3 text-sm text-slate-600">
-                  <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-xs">3</div>
-                  Receive 50 Karma Points
-                </li>
-              </ul>
+            {/* Credit Points System - Attention Grabbing! */}
+            <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 border-2 border-orange-200 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+              {/* Animated glow effect */}
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-400/30 rounded-full blur-[40px] animate-pulse"></div>
+              <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-emerald-400/20 rounded-full blur-[30px]"></div>
+
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 bg-gradient-to-br from-orange-500 to-rose-500 rounded-xl shadow-lg">
+                    <Award className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">Earn Karma Points!</h4>
+                    <p className="text-[10px] text-slate-500">Every action counts</p>
+                  </div>
+                </div>
+
+                {/* Points breakdown with visual hierarchy */}
+                <div className="space-y-2.5">
+                  {/* Report Submitted */}
+                  <div className="flex items-center justify-between p-2.5 bg-white/70 rounded-xl border border-emerald-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <Leaf className="w-3 h-3 text-emerald-600" />
+                      </div>
+                      <span className="text-xs font-medium text-slate-700">Submit Report</span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+10</span>
+                  </div>
+
+                  {/* Dispatched */}
+                  <div className="flex items-center justify-between p-2.5 bg-white/70 rounded-xl border border-blue-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Truck className="w-3 h-3 text-blue-600" />
+                      </div>
+                      <span className="text-xs font-medium text-slate-700">Team Dispatched</span>
+                    </div>
+                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">+15</span>
+                  </div>
+
+                  {/* On Scene */}
+                  <div className="flex items-center justify-between p-2.5 bg-white/70 rounded-xl border border-purple-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                        <MapPin className="w-3 h-3 text-purple-600" />
+                      </div>
+                      <span className="text-xs font-medium text-slate-700">Team On Scene</span>
+                    </div>
+                    <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">+20</span>
+                  </div>
+
+                  {/* Resolved - Highlighted! */}
+                  <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border-2 border-emerald-200 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <Check className="w-3 h-3 text-white" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-800">Issue Resolved!</span>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full animate-pulse">+50</span>
+                  </div>
+
+                  {/* False Report - Warning */}
+                  <div className="flex items-center justify-between p-2.5 bg-rose-50/70 rounded-xl border border-rose-200">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center">
+                        <Zap className="w-3 h-3 text-rose-500" />
+                      </div>
+                      <span className="text-xs font-medium text-rose-700">False Alarm</span>
+                    </div>
+                    <span className="text-xs font-bold text-rose-600 bg-rose-100 px-2 py-1 rounded-full">-10</span>
+                  </div>
+                </div>
+
+                {/* Total potential */}
+                <div className="mt-4 pt-3 border-t border-orange-200/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Max per valid report</span>
+                    <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-rose-600">+95 Karma</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

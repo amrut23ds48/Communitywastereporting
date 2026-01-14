@@ -471,10 +471,11 @@ export function ReportsTable({ initialFilter = 'all', onFilterChange, externalZo
                     className="w-full appearance-none pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >
                     <option value="all">All Statuses</option>
-                    <option value="open">Open Issues</option>
-                    <option value="in_progress">In Progress</option>
+                    <option value="open">New Alert</option>
+                    <option value="dispatched">Dispatched</option>
+                    <option value="on_scene">On Scene</option>
                     <option value="resolved">Resolved</option>
-                    <option value="false_report">False Flag</option>
+                    <option value="false_report">False Alarm</option>
                   </select>
                   <Filter className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
