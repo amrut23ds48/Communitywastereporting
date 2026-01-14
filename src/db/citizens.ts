@@ -180,13 +180,12 @@ export async function getCitizenReports(
     status?: 'open' | 'in_progress' | 'resolved' | 'false_report' | 'all';
     limit?: number;
   }
-): Promise<{ data: Database['public']['Tables']['reports']['Row'][] | null; error: Error | null }> {
+): Promise<{ data: Database['public']['Tables']['incidents']['Row'][] | null; error: Error | null }> {
   console.log('📋 [db/citizens] getCitizenReports: Fetching reports for user:', userId, filters);
   const supabase = createClient();
 
   try {
-    let query = supabase
-      .from('reports')
+    let query = (supabase.from('incidents') as any)
       .select('*')
       .eq('citizen_id', userId)
       .order('created_at', { ascending: false });
@@ -220,7 +219,7 @@ export async function getCitizenReports(
 export async function getCitizenRecentReports(
   userId: string,
   limit: number = 3
-): Promise<{ data: Database['public']['Tables']['reports']['Row'][] | null; error: Error | null }> {
+): Promise<{ data: Database['public']['Tables']['incidents']['Row'][] | null; error: Error | null }> {
   return getCitizenReports(userId, { limit, status: 'all' });
 }
 

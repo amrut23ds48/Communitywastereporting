@@ -1,7 +1,7 @@
-import { createClient } from '../utils/supabase/client';
+import { createClient, type Database } from '../utils/supabase/client';
 import { Incident, IncidentStatus, Severity, IncidentCategory } from '../types';
 
-export async function createIncident(incident: Partial<Incident>): Promise<{ data: Incident | null; error: Error | null }> {
+export async function createIncident(incident: Omit<Partial<Incident>, 'id' | 'created_at' | 'updated_at' | 'resolved_at' | 'status' | 'citizen_id'>): Promise<{ data: Incident | null; error: Error | null }> {
     console.log('📝 [db/incidents] createIncident: Initiating with data:', incident);
     const supabase = createClient();
 
@@ -13,9 +13,12 @@ export async function createIncident(incident: Partial<Incident>): Promise<{ dat
             .from('incidents')
             .insert({
                 ...incident,
-                user_id: userId,
+                citizen_id: userId,
                 status: 'open',
-            })
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                resolved_at: null,
+            } as any)  // Temporary type assertion to fix type error
             .select()
             .single();
 
@@ -98,8 +101,7 @@ export async function getIncidents(filters?: {
 
 export async function updateIncidentStatus(id: string, status: IncidentStatus, userId: string): Promise<{ error: Error | null }> {
     const supabase = createClient();
-    const { error } = await supabase
-        .from('incidents')
+    const { error } = await (supabase.from('incidents') as any)
         .update({ status })
         .eq('id', id);
     return { error };
