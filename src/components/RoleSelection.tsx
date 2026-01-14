@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react';
 import {
   Users, Shield, ArrowRight, Check, MapPin,
   Leaf, Award, Target, BarChart3, Trophy, Globe, Zap,
-  ShieldCheck, Truck
+  ShieldCheck, Truck, Building2, Radio, Clock
 } from 'lucide-react';
 // import { WasteCompositionWidget } from './WasteCompositionWidget';
 import { getSystemStats } from '../db/stats';
 import { getCitizenLeaderboard } from '../db/citizens';
 
 interface RoleSelectionProps {
-  onSelectRole: (role: 'citizen' | 'admin') => void;
+  onSelectRole: (role: 'citizen' | 'admin' | 'agency') => void;
 }
 
 export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
-  const [selectedRole, setSelectedRole] = useState<'citizen' | 'admin' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'citizen' | 'admin' | 'agency' | null>(null);
   const [recentActivity, setRecentActivity] = useState<string>('Loading live updates...');
 
   // Real stats from DB
@@ -71,7 +71,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
     fetchData();
   }, []);
 
-  const handleRoleSelect = (role: 'citizen' | 'admin') => {
+  const handleRoleSelect = (role: 'citizen' | 'admin' | 'agency') => {
     setSelectedRole(role);
     setTimeout(() => onSelectRole(role), 500);
   };
@@ -106,6 +106,21 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
       color: 'blue',
       bgGradient: 'from-blue-600 to-indigo-600',
       shadow: 'shadow-blue-500/20'
+    },
+    {
+      id: 'agency',
+      title: 'Field Agency',
+      subtitle: 'Fire • Police • Medical • Rescue',
+      description: 'For field response teams to manage assigned incidents, update status, and track resources.',
+      icon: Building2,
+      features: [
+        { text: 'Assigned Incidents', icon: Radio },
+        { text: 'Field Status Updates', icon: Clock },
+        { text: 'Team Resources', icon: Truck }
+      ],
+      color: 'violet',
+      bgGradient: 'from-violet-600 to-purple-600',
+      shadow: 'shadow-violet-500/20'
     }
   ];
 
@@ -208,7 +223,7 @@ export function RoleSelection({ onSelectRole }: RoleSelectionProps) {
               return (
                 <button
                   key={role.id}
-                  onClick={() => handleRoleSelect(role.id as 'citizen' | 'admin')}
+                  onClick={() => handleRoleSelect(role.id as 'citizen' | 'admin' | 'agency')}
                   className={`group relative w-full text-left transition-all duration-500 perspective-1000`}
                 >
                   <div className={`

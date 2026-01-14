@@ -16,6 +16,7 @@ import { exportToCSV, exportToPDF } from '../utils/exportUtils';
 import { ExportDialog } from './ExportDialog';
 import type { Database } from '../utils/supabase/client';
 import { ResourceManagementView } from './dashboard-views/ResourceManagementView';
+import { CoordinatorAnalyticsSection } from './dashboard-views/CoordinatorAnalyticsSection';
 
 type Notification = Database['public']['Tables']['notifications']['Row'];
 
@@ -164,6 +165,13 @@ export function CoordinatorDashboard({ onLogout, userId }: CoordinatorDashboardP
                                         <CrisisMap viewType="agency" key={refreshKey} zone={globalZone} district={globalDistrict} />
                                     </div>
                                 </div>
+
+                                {/* Analytics Section with Charts */}
+                                <CoordinatorAnalyticsSection
+                                    zone={globalZone}
+                                    district={globalDistrict}
+                                    refreshKey={refreshKey}
+                                />
                             </div>
                         )}
 
