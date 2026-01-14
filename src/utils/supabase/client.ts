@@ -264,6 +264,7 @@ export type Database = {
       };
     };
   };
+};
 
 /**
  * Create Supabase client using official @supabase/supabase-js
